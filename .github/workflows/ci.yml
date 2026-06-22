@@ -78,11 +78,43 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e packages/sec-audit \
             -e packages/sec-audit-logging \
-            -e 'packages/sec-audit-rules[wazuh]' \
+            -e 'packages/sec-audit-rules[redis,wazuh]' \
             -e 'packages/django-sec-audit[full]' \
-            pytest
+            pytest 'fakeredis[lua]>=2.21'
       - name: Run tests
         run: pytest -q
+
+  # Enforcement distribution: needs all five packages + Redis stores + a Django
+  # settings module, so its ORM-backed suite runs from the package directory
+  # (where its own pyproject configures DJANGO_SETTINGS_MODULE + pytest-django).
+  enforcement:
+    name: Enforcement (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install enforcement release and tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e packages/sec-audit \
+            -e packages/sec-audit-logging \
+            -e 'packages/sec-audit-rules[redis]' \
+            -e 'packages/django-sec-audit[full]' \
+            -e 'packages/django-sec-audit-enforcement[dev]'
+      - name: Run enforcement tests
+        working-directory: packages/django-sec-audit-enforcement
+        run: python -m pytest -q
+      - name: Run Ruff lint
+        run: ruff check packages/django-sec-audit-enforcement
+      - name: Run Ruff format check
+        run: ruff format --check packages/django-sec-audit-enforcement
 
   package:
     name: Package
@@ -101,11 +133,13 @@ jobs:
           python -m build --outdir dist/sec-audit-logging packages/sec-audit-logging
           python -m build --outdir dist/sec-audit-rules packages/sec-audit-rules
           python -m build --outdir dist/django-sec-audit packages/django-sec-audit
+          python -m build --outdir dist/django-sec-audit-enforcement packages/django-sec-audit-enforcement
           python -m twine check \
             dist/sec-audit/* \
             dist/sec-audit-logging/* \
             dist/sec-audit-rules/* \
-            dist/django-sec-audit/*
+            dist/django-sec-audit/* \
+            dist/django-sec-audit-enforcement/*
 
   # Install ONLY the built wheels into a clean venv (no editable installs) and
   # prove the four-distribution namespace composes, django.setup() runs, and one

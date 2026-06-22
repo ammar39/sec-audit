@@ -114,6 +114,43 @@ def _thaw(value: object) -> object:
     return value
 
 
+# OTel-namespaced attribute keys (as emitted by django-sec-audit's
+# ``build_log_attributes``) aliased to the raw names the scope extractors and
+# the ``create_history_summary`` whitelist read. An emitted ``AuditEvent``
+# carries only the OTel forms, so without this alias ``source.address`` /
+# ``session.id`` / ``user.id`` / ``http.route`` / ``http.route_name`` never
+# become the ``srcip`` / ``session_id`` / ``user_id`` / ``route`` /
+# ``route_name`` the summary path looks for — silently dropping those scopes,
+# notably the primary ``ip`` ban dimension. The rule accessors already fall
+# back (e.g. ``source`` reads ``source.address`` or ``srcip``), but the
+# summary/whitelist path does not, so the alias must land here in
+# ``from_mapping`` where every consumer enters.
+_OTEL_TO_RAW_ALIASES = (
+    ('session.id', SummaryKey.SESSION_ID),
+    ('user.id', SummaryKey.USER_ID),
+    ('source.address', SummaryKey.SRCIP),
+    ('http.route', SummaryKey.ROUTE),
+    ('http.route_name', SummaryKey.ROUTE_NAME),
+)
+
+
+def _normalize_scope_aliases(source: Mapping[str, object]) -> Mapping[str, object]:
+    # Fill a raw key only when absent so an explicit raw value always wins.
+    # Return ``source`` unchanged when no alias applies, avoiding a copy of the
+    # common already-raw event (and preserving an immutable input untouched).
+    additions: dict[str, object] = {}
+    for otel_key, raw_key in _OTEL_TO_RAW_ALIASES:
+        if source.get(raw_key) in (None, ''):
+            value = source.get(otel_key)
+            if value not in (None, ''):
+                additions[raw_key] = value
+    if not additions:
+        return source
+    merged = dict(source)
+    merged.update(additions)
+    return merged
+
+
 @dataclass(frozen=True)
 class RuleEvent:
     event_type: str
@@ -138,6 +175,7 @@ class RuleEvent:
             # from the concrete core type.
             attrs = getattr(event, 'attributes', None)
             source = attrs if isinstance(attrs, Mapping) else {}
+        source = _normalize_scope_aliases(source)
         # Fall back to the object's own ``event_type`` (e.g. a directly
         # constructed AuditEvent) when the attributes lack one.
         event_type = source.get('event_type')

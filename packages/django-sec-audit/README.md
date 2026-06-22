@@ -1,10 +1,13 @@
 # django-sec-audit
 
+[![PyPI version](https://img.shields.io/pypi/v/django-sec-audit.svg)](https://pypi.org/project/django-sec-audit/)
+[![Python versions](https://img.shields.io/pypi/pyversions/django-sec-audit.svg)](https://pypi.org/project/django-sec-audit/)
+[![License](https://img.shields.io/pypi/l/django-sec-audit.svg)](https://github.com/ammar39/sec-audit/blob/main/LICENSE)
+[![GitHub](https://img.shields.io/badge/github-ammar39%2Fsec--audit-blue)](https://github.com/ammar39/sec-audit)
+
 Structured security and audit logging for Django, emitting [OpenTelemetry LogRecord](https://opentelemetry.io/docs/specs/otel/logs/data-model/)-shaped JSONL events.
 
 Captures HTTP request/response metadata, auth events (login, logout, failures), model changes (via django-auditlog), and DRF view metadata out of the box.
-
-**Repository:** [github.com/ammar39/sec-audit](https://github.com/ammar39/sec-audit)
 
 ## Features
 

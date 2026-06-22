@@ -1,5 +1,10 @@
 # django-sec-audit
 
+[![PyPI version](https://img.shields.io/pypi/v/django-sec-audit.svg)](https://pypi.org/project/django-sec-audit/)
+[![Python versions](https://img.shields.io/pypi/pyversions/django-sec-audit.svg)](https://pypi.org/project/django-sec-audit/)
+[![License](https://img.shields.io/pypi/l/django-sec-audit.svg)](https://github.com/ammar39/sec-audit/blob/main/LICENSE)
+[![GitHub](https://img.shields.io/badge/github-ammar39%2Fsec--audit-blue)](https://github.com/ammar39/sec-audit)
+
 Structured security and audit logging for Django, producing OpenTelemetry
 LogRecord-shaped JSONL with ready-to-use Grafana Alloy and Loki examples.
 

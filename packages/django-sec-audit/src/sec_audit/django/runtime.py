@@ -17,7 +17,19 @@ from sec_audit.logging import AuditPipeline, LoggingRuntime
 AUDIT_LOGGER_NAME = 'sec_audit.audit'
 _runtime: DjangoLoggingRuntime | None = None
 _runtime_lock = threading.Lock()
-__all__ = ['DjangoLoggingRuntime', 'get_runtime']
+# Inert consumer seam: callables that receive each emitted AuditEvent AFTER it is
+# logged. Empty by default (zero behavior change). A downstream package (e.g.
+# django-sec-audit-enforcement) registers a consumer here so it sees HTTP, auth,
+# and model events alike — they all funnel through ``record()``. ``record`` only
+# calls ``fn(event)`` and imports nothing from sec_audit.rules, preserving the
+# no-rules-dependency boundary.
+_rule_event_consumers: list = []
+__all__ = [
+    'DjangoLoggingRuntime',
+    'get_runtime',
+    'register_rule_event_consumer',
+    'unregister_rule_event_consumer',
+]
 
 
 @dataclass(frozen=True)
@@ -30,6 +42,34 @@ class DjangoLoggingRuntime:
             self.logging.emit_event(event, level)
         except Exception:
             diagnostic_warning('audit.emit_failed', 'Audit record emission failed')
+        _dispatch_to_consumers(event)
+
+
+def register_rule_event_consumer(consumer) -> None:
+    if consumer not in _rule_event_consumers:
+        _rule_event_consumers.append(consumer)
+
+
+def unregister_rule_event_consumer(consumer) -> None:
+    try:
+        _rule_event_consumers.remove(consumer)
+    except ValueError:
+        pass
+
+
+def _dispatch_to_consumers(event: AuditEvent) -> None:
+    # Reentrant by design: a consumer may emit audit.enforcement.* via record(),
+    # which re-enters here. The engine skip-list makes the nested evaluate a
+    # no-op, but this must NOT be guarded by a non-reentrant lock or the nested
+    # emit would deadlock. Iterate a snapshot so a consumer registering/clearing
+    # during dispatch is safe.
+    for consumer in tuple(_rule_event_consumers):
+        try:
+            consumer(event)
+        except Exception:
+            diagnostic_warning(
+                'audit.consumer_failed', 'Audit rule-event consumer failed'
+            )
 
 
 def _build_runtime(settings_obj) -> DjangoLoggingRuntime:

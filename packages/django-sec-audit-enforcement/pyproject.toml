@@ -3,16 +3,18 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sec-audit-rules"
-version = "0.1.0a2"
-description = "Framework-free audit rules engine and enforcement policies"
+name = "django-sec-audit-enforcement"
+version = "0.1.0a1"
+description = "Redis + Postgres enforcement layer for django-sec-audit: temp/permanent blocks, ingress check, OTel enforcement events"
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "Ammar", email = "ammarwaleed@proton.me" }]
 requires-python = ">=3.10"
-keywords = ["security", "audit", "rules", "enforcement", "wazuh", "siem"]
+keywords = ["django", "security", "audit", "enforcement", "rate-limit", "redis", "siem"]
 dependencies = [
-  "sec-audit>=0.1.0a1,<0.2",
+  "sec-audit-rules[redis]>=0.1.0a2,<0.2",
+  "django-sec-audit>=0.1.0a4,<0.2",
+  "django>=5.2,<6.1",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -24,40 +26,26 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Framework :: Django",
   "Topic :: Security",
 ]
 
 [project.urls]
 Homepage = "https://github.com/ammar39/sec-audit"
 Repository = "https://github.com/ammar39/sec-audit"
-Documentation = "https://github.com/ammar39/sec-audit/tree/main/packages/sec-audit-rules"
+Documentation = "https://github.com/ammar39/sec-audit/tree/main/packages/django-sec-audit-enforcement"
 Changelog = "https://github.com/ammar39/sec-audit/blob/main/CHANGELOG.md"
 Issues = "https://github.com/ammar39/sec-audit/issues"
 
 [project.optional-dependencies]
-wazuh = ["httpx>=0.27"]
-redis = ["redis>=5.0"]
-dev = ["pytest>=8", "ruff>=0.8", "fakeredis[lua]>=2.21"]
+dev = ["pytest>=8", "pytest-django>=4.12.0", "ruff>=0.8", "fakeredis[lua]>=2.21"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sec_audit"]
-only-include = [
-  "src/sec_audit/rules",
-  "src/sec_audit/enforcement",
-  "src/sec_audit/integrations/wazuh",
-]
+only-include = ["src/sec_audit/django_enforcement"]
 
 [tool.hatch.build.targets.wheel.sources]
-# src/sec_audit -> sec_audit (Python 3.3+ implicit namespace package shared with sec-audit and django-sec-audit)
 "src/sec_audit" = "sec_audit"
-
-[tool.hatch.build]
-# Package data (XML/YAML monitoring assets) ship as artifacts.
-artifacts = [
-  "src/sec_audit/integrations/wazuh/rules/**/*.xml",
-  "src/sec_audit/integrations/wazuh/rules/**/*.yml",
-  "src/sec_audit/integrations/wazuh/rules/**/*.yaml",
-]
 
 [tool.ruff]
 target-version = "py310"
@@ -68,3 +56,4 @@ quote-style = "single"
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
+DJANGO_SETTINGS_MODULE = "tests.settings"
