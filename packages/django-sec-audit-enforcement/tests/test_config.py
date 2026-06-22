@@ -53,3 +53,24 @@ def test_fail_closed_paths_compiled():
         _S({'fail_closed_paths': [r'^/api/transfer']})
     )
     assert cfg.fail_closed_paths[0].search('/api/transfer/x')
+
+
+def test_rules_key_accepted_and_instance_passes_through():
+    # A non-string entry (an already-instantiated Rule, here a sentinel) is not
+    # touched at parse time; resolution/validation happens at runtime build.
+    sentinel = object()
+    cfg = DjangoEnforcementConfig.from_settings(_S({'rules': [sentinel]}))
+    assert cfg.rules == (sentinel,)
+
+
+def test_rules_string_shape_validated_fail_fast():
+    # Shape-only validation: a non "module.attr" path is rejected at ready().
+    with pytest.raises(AuditConfigurationError):
+        DjangoEnforcementConfig.from_settings(_S({'rules': ['nodotmodule']}))
+
+
+def test_rules_valid_dotted_path_passes_parse_without_import():
+    # A well-formed but non-existent path passes parse — the import is deferred
+    # to the runtime build (no import side effects during settings parsing).
+    cfg = DjangoEnforcementConfig.from_settings(_S({'rules': ['a.b.DoesNotExist']}))
+    assert cfg.rules == ('a.b.DoesNotExist',)

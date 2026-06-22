@@ -11,6 +11,11 @@ breaking changes may land in minor releases).
 ## [Unreleased]
 
 ### Added
+- **Custom enforcement rules** for `django-sec-audit-enforcement`: register your own
+  `sec_audit.rules.Rule` subclasses via the new `SEC_AUDIT_ENFORCEMENT['rules']` setting
+  (dotted-path strings or `Rule` instances), appended to the built-in defaults. Validated
+  fail-fast at app `ready()`; observe-only until mapped to a `rule_actions` entry. See the
+  "Custom rules" section in `packages/django-sec-audit-enforcement/README.md`.
 - Loki/Grafana setup guide for `django-sec-audit` (`packages/django-sec-audit/docs/loki-setup.md`).
 - Publishing runbook (`PUBLISHING.md`) covering the four-package build/upload order.
 - Package metadata for PyPI: `authors`, `keywords`, and `[project.urls]` across all four

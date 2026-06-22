@@ -51,6 +51,7 @@ _KNOWN_KEYS = {
     'block_severity',
     'rule_actions',
     'block_rules',
+    'rules',
 }
 
 
@@ -66,6 +67,11 @@ class DjangoEnforcementConfig:
     eval_safe_on_ingress: bool = True
     apply_via_sink: bool = False
     scope_specs: tuple[object, ...] = ()
+    # User-registered custom rules: import-path strings (``"module.attr"``) to a
+    # ``Rule`` subclass/instance, or already-instantiated ``Rule`` objects. The
+    # actual import/instantiation is deferred to the lazy runtime build; only the
+    # ``"module.attr"`` shape of string entries is validated here, fail-fast.
+    rules: tuple[object, ...] = ()
     block_precedence: tuple[str, ...] = ()
     status_code: int = 429
     message: str = DEFAULT_BLOCK_MESSAGE
@@ -136,6 +142,7 @@ class DjangoEnforcementConfig:
                 'apply_via_sink', raw.get('apply_via_sink', False)
             ),
             scope_specs=cv.sequence('scope_specs', raw.get('scope_specs', ())),
+            rules=cv.importable_tuple('rules', raw.get('rules', ())),
             block_precedence=cv.str_tuple(
                 'block_precedence', raw.get('block_precedence', ())
             ),

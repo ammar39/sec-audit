@@ -14,13 +14,16 @@ import threading
 from dataclasses import dataclass
 
 from django.conf import settings
+from django.utils.module_loading import import_string
 
+from sec_audit.core.exceptions import AuditConfigurationError
 from sec_audit.django.runtime import (
     get_runtime,
     register_rule_event_consumer,
     unregister_rule_event_consumer,
 )
 from sec_audit.enforcement.policies import SeverityEnforcementPolicy
+from sec_audit.rules.base import Rule
 from sec_audit.rules.builtins import (
     BruteForceLoginRule,
     LoginThrottleRule,
@@ -155,7 +158,7 @@ def _build_runtime(config: DjangoEnforcementConfig) -> 'DjangoEnforcementRuntime
         emitter=emitter,
     )
     engine = RuleEngine(
-        _default_rules(),
+        _all_rules(config),
         counters=counters,
         history=history,
         history_extractors=registry.extractors,
@@ -233,6 +236,55 @@ def _default_rules():
         LoginThrottleRule(),
         RepeatedClientErrorRule(),
     ]
+
+
+def _resolve_custom_rules(config: DjangoEnforcementConfig) -> list[Rule]:
+    """Resolve ``config.rules`` specs into ``Rule`` instances.
+
+    Each spec is a dotted ``"module.attr"`` path (resolved here, deferred from
+    settings-parse so a rule module's import side effects don't run at
+    ``ready()``) or an already-instantiated ``Rule``. A path/object pointing at a
+    ``Rule`` subclass is instantiated; a ``Rule`` instance is used as-is.
+    """
+    resolved: list[Rule] = []
+    for spec in config.rules:
+        obj = import_string(spec) if isinstance(spec, str) else spec
+        if isinstance(obj, type) and issubclass(obj, Rule):
+            rule = obj()
+        elif isinstance(obj, Rule):
+            rule = obj
+        else:
+            raise AuditConfigurationError(
+                f'SEC_AUDIT_ENFORCEMENT rules entry {spec!r} is not a Rule '
+                'subclass or instance.'
+            )
+        name = getattr(rule, 'name', '')
+        if not isinstance(name, str) or not name:
+            raise AuditConfigurationError(
+                f'SEC_AUDIT_ENFORCEMENT rules entry {spec!r} has an empty name; '
+                'a Rule must declare a non-empty `name`.'
+            )
+        resolved.append(rule)
+    return resolved
+
+
+def _all_rules(config: DjangoEnforcementConfig) -> list[Rule]:
+    """Built-in defaults plus user-registered custom rules (appended).
+
+    Duplicate rule names — across the combined set — are rejected fail-fast so a
+    custom rule cannot silently shadow a built-in (e.g. ``brute_force_login``);
+    enforcement actions key on the rule name, so collisions would be ambiguous.
+    """
+    rules = _default_rules() + _resolve_custom_rules(config)
+    seen: set[str] = set()
+    for rule in rules:
+        if rule.name in seen:
+            raise AuditConfigurationError(
+                f'Duplicate enforcement rule name {rule.name!r}; custom rule '
+                'names must be unique and must not collide with a built-in.'
+            )
+        seen.add(rule.name)
+    return rules
 
 
 __all__ = [
