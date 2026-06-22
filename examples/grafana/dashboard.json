@@ -1,0 +1,25 @@
+{
+  "title": "Sec Audit Logging",
+  "uid": "sec-audit-logging",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total audit events",
+      "targets": [{"expr": "sum(count_over_time({service_name=\"django-sec-audit\"}[$__range]))"}]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Events by type",
+      "targets": [{"expr": "sum by (event_type) (count_over_time({service_name=\"django-sec-audit\"}[$__interval]))"}]
+    },
+    {
+      "id": 3,
+      "type": "logs",
+      "title": "Raw audit log explorer",
+      "targets": [{"expr": "{service_name=\"django-sec-audit\"}"}]
+    }
+  ]
+}

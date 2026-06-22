@@ -1,0 +1,360 @@
+:root {
+    --ink: #16202a;
+    --muted: #667085;
+    --line: #d8dee8;
+    --paper: #f6f7f9;
+    --surface: #ffffff;
+    --blue: #2457c5;
+    --teal: #087f7a;
+    --red: #c83e3e;
+    --amber: #a56400;
+    --green: #147b4b;
+    --shadow: 0 14px 30px rgba(22, 32, 42, 0.08);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    line-height: 1.45;
+}
+
+button,
+a {
+    font: inherit;
+}
+
+button {
+    border: 0;
+}
+
+.shell {
+    width: min(1440px, calc(100vw - 32px));
+    margin: 0 auto;
+    padding: 24px 0 36px;
+}
+
+.topbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 4px 0 18px;
+}
+
+.eyebrow {
+    margin: 0 0 4px;
+    color: var(--teal);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+p {
+    margin-top: 0;
+}
+
+h1 {
+    margin-bottom: 0;
+    font-size: clamp(1.7rem, 2vw, 2.35rem);
+    letter-spacing: 0;
+}
+
+h2 {
+    margin-bottom: 0;
+    font-size: 1rem;
+    letter-spacing: 0;
+}
+
+h3 {
+    margin-bottom: 8px;
+    font-size: 1rem;
+    letter-spacing: 0;
+}
+
+.top-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.top-actions a,
+.ghost-button,
+.scenario-actions button,
+.icon-button {
+    min-height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.top-actions a {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 12px;
+}
+
+.status-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    gap: 12px;
+    align-items: stretch;
+    margin-bottom: 16px;
+}
+
+.status-strip > div,
+.ghost-button {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    padding: 12px;
+}
+
+.status-label {
+    display: block;
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.workspace {
+    display: grid;
+    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.scenario-rail,
+.panel {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+
+.scenario-rail {
+    position: sticky;
+    top: 16px;
+    padding: 14px;
+}
+
+.section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.icon-button {
+    width: 36px;
+    padding: 0;
+}
+
+.scenario-list {
+    display: grid;
+    gap: 10px;
+}
+
+.scenario-card {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px;
+    background: #fbfcfe;
+}
+
+.scenario-card p,
+.run-summary p,
+.evidence-row p,
+.log-row p {
+    margin-bottom: 0;
+    color: var(--muted);
+}
+
+.scenario-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.scenario-actions button:first-child {
+    background: var(--blue);
+    color: white;
+    border-color: var(--blue);
+}
+
+.scenario-actions button:last-child {
+    background: #ecf7f6;
+    color: var(--teal);
+    border-color: #b7dedb;
+}
+
+.result-area {
+    display: grid;
+    gap: 16px;
+}
+
+.panel {
+    padding: 16px;
+}
+
+.response-panel {
+    min-height: 340px;
+}
+
+.response-output,
+.evidence-list,
+.log-list {
+    display: grid;
+    gap: 10px;
+}
+
+.empty-state {
+    display: grid;
+    min-height: 96px;
+    place-items: center;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.pill,
+.status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    border-radius: 999px;
+    padding: 0 10px;
+    background: #eef2f7;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.pill.strong {
+    background: #e8f1ff;
+    color: var(--blue);
+    text-transform: uppercase;
+}
+
+.step-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.step-row,
+.evidence-row,
+.log-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: start;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    background: #fbfcfe;
+}
+
+.status.success {
+    background: #eaf6ef;
+    color: var(--green);
+}
+
+.status.danger {
+    background: #fbecec;
+    color: var(--red);
+}
+
+pre,
+code {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: 6px;
+    background: #18202b;
+    color: #f5f7fb;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.78rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+pre {
+    margin: 8px 0 0;
+    padding: 10px;
+}
+
+code {
+    margin-top: 8px;
+    padding: 8px;
+}
+
+.evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.evidence-row,
+.log-row {
+    grid-template-columns: 1fr;
+}
+
+.evidence-row span,
+.log-row span {
+    color: var(--amber);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+@media (max-width: 980px) {
+    .topbar,
+    .workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .topbar {
+        display: grid;
+        align-items: start;
+    }
+
+    .status-strip,
+    .evidence-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .scenario-rail {
+        position: static;
+    }
+}
+
+@media (max-width: 560px) {
+    .shell {
+        width: min(100vw - 20px, 1440px);
+        padding-top: 12px;
+    }
+
+    .scenario-actions,
+    .step-row {
+        grid-template-columns: 1fr;
+    }
+}

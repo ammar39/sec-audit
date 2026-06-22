@@ -1,0 +1,8 @@
+title: sec_audit rule match
+logsource:
+  product: python
+detection:
+  selection:
+    attributes.event_type: audit.rule.match
+  condition: selection
+level: medium

@@ -1,0 +1,80 @@
+// Complete production path: collect Django container stdout and forward it to
+// Loki as OpenTelemetry LogRecord-shaped JSONL.
+//
+// Django writes audit JSONL to stdout (LOGGING -> audit_stdout StreamHandler
+// with the JSONLLogFormatter). Alloy discovers the Django container, tails its
+// stdout, parses the OTel body into low-cardinality labels, and writes to Loki.
+//
+// This is a ready-to-run container stdout example. For other runtimes, swap the
+// source while keeping the loki.process stage unchanged:
+//   - Kubernetes: replace discovery.docker / loki.source.docker with the Alloy
+//     Kubernetes integration (discovery.kubernetes / loki.source.kubernetes).
+//   - systemd/journald: use loki.source.journal.
+//   - stdout redirected to a file: see file-to-loki.alloy.
+//
+// Reference: https://grafana.com/docs/alloy/latest/
+
+// Discover the Django audit container over the Docker socket. The name filter
+// limits collection to your app container; adjust it to match how your
+// container is named or labeled.
+discovery.docker "django_audit" {
+  host = "unix:///var/run/docker.sock"
+  filter {
+    name   = "name"
+    values = ["django-sec-audit.*"]
+  }
+}
+
+// Tail the container's stdout. The default reader splits on newlines, so each
+// JSONL record the Django process writes becomes one Loki log entry with its
+// full OTel body preserved.
+loki.source.docker "django_audit" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.django_audit.targets
+  forward_to = [loki.process.sec_audit_stdout.receiver]
+}
+
+// Parse the OTel LogRecord body and project a small, bounded set of fields to
+// Loki stream labels. Static deployment labels are set explicitly, while
+// event_type and severity are extracted from the JSON body. Keep label
+// cardinality low: everything else is reachable with the | json LogQL stage.
+loki.process "sec_audit_stdout" {
+  stage.json {
+    expressions = {
+      event_type = "attributes.event_type",
+      severity   = "severity_text",
+    }
+  }
+
+  stage.static_labels {
+    values = {
+      service_name = "django-sec-audit",
+      environment  = "production",
+    }
+  }
+
+  stage.labels {
+    values = {
+      event_type = "event_type",
+      severity   = "severity",
+    }
+  }
+
+  // Drop internal labels Alloy adds by default; they are not part of the
+  // package contract and would inflate Loki stream cardinality otherwise.
+  stage.label_drop {
+    values = ["filename", "job", "container_name", "image"]
+  }
+
+  forward_to = [loki.write.loki.receiver]
+}
+
+// Push to the local Loki instance. Batch_wait/batch_size match the defaults
+// Alloy ships; tune for your environment if you need lower end-to-end latency.
+loki.write "loki" {
+  endpoint {
+    url        = "http://loki:3100/loki/api/v1/push"
+    batch_wait = "1s"
+    batch_size = "1MiB"
+  }
+}

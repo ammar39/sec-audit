@@ -1,0 +1,73 @@
+// Grafana Alloy file pipeline for django-sec-audit.
+//
+// Reads OpenTelemetry LogRecord-shaped JSONL written to a file (e.g. a stdlib
+// RotatingFileHandler using the audit_jsonl formatter) and pushes it to Loki.
+// Stdout collection is the recommended production path; this file pipeline is a
+// local/secondary example.
+//
+// Reference: https://grafana.com/docs/alloy/latest/
+
+// Discover the audit log file on disk. The path is bind-mounted by
+// docker-compose; the values are templated by sec-audit-loki-init.
+local.file_match "audit_logs" {
+  path_targets = [{
+    __address__ = "localhost",
+    __path__    = "/var/log/sec-audit/sec-audit.jsonl",
+  }]
+}
+
+// Tail the file. The default reader splits on newlines, so each JSONL record
+// becomes a Loki log entry with its full OTel body preserved.
+loki.source.file "audit_logs" {
+  targets    = local.file_match.audit_logs.targets
+  forward_to = [loki.process.audit_logs.receiver]
+}
+
+// Parse the OTel LogRecord body and project a small, bounded set of fields to
+// Loki stream labels. service_name is extracted from the record body
+// (resource.service.name = SEC_AUDIT['core']['source']) so the stream label
+// always matches the emitted record; only environment is a static deployment
+// label. Keep label cardinality low: everything else is reachable with the
+// | json LogQL stage.
+loki.process "audit_logs" {
+  stage.json {
+    expressions = {
+      event_type   = "attributes.event_type",
+      severity     = "severity_text",
+      service_name = "resource.\"service.name\"",
+    }
+  }
+
+  stage.static_labels {
+    values = {
+      environment = "{{ ENVIRONMENT }}",
+    }
+  }
+
+  stage.labels {
+    values = {
+      event_type   = "event_type",
+      severity     = "severity",
+      service_name = "service_name",
+    }
+  }
+
+  // Drop internal labels Alloy adds by default; they are not part of the
+  // package contract and would inflate Loki stream cardinality otherwise.
+  stage.label_drop {
+    values = ["filename", "job"]
+  }
+
+  forward_to = [loki.write.loki.receiver]
+}
+
+// Push to the local Loki instance. Batch_wait/batch_size match the
+// defaults Alloy ships; tune for your environment if you need lower
+// end-to-end latency.
+loki.write "loki" {
+  endpoint {
+    url        = "http://loki:3100/loki/api/v1/push"
+    batch_wait = "1s"
+    batch_size = "1MiB"
+  }
+}

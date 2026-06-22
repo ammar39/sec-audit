@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sec-audit-logging"
+version = "0.1.0a1"
+description = "Framework-free structured audit logging: OTel JSONL emission, scrubbing, formatters, file handlers, and Loki examples"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Ammar", email = "ammarwaleed@proton.me" }]
+requires-python = ">=3.10"
+keywords = ["security", "audit", "logging", "opentelemetry", "jsonl", "loki", "grafana", "siem"]
+dependencies = [
+  "sec-audit>=0.1.0a1,<0.2",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://github.com/ammar39/sec-audit"
+Repository = "https://github.com/ammar39/sec-audit"
+Documentation = "https://github.com/ammar39/sec-audit/tree/main/packages/sec-audit-logging"
+Changelog = "https://github.com/ammar39/sec-audit/blob/main/CHANGELOG.md"
+Issues = "https://github.com/ammar39/sec-audit/issues"
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.8"]
+
+[project.scripts]
+sec-audit-loki-init = "sec_audit.logging.integrations.loki.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sec_audit"]
+only-include = ["src/sec_audit/logging"]
+
+[tool.hatch.build.targets.wheel.sources]
+# src/sec_audit -> sec_audit  (Python 3.3+ implicit namespace, shared with sibling distributions)
+"src/sec_audit" = "sec_audit"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]

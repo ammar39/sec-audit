@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Sec Audit
+    orgId: 1
+    folder: Sec Audit
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

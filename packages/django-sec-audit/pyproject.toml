@@ -1,0 +1,69 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "django-sec-audit"
+version = "0.1.0a2"
+description = "Structured security and audit logging for Django with OpenTelemetry LogRecord-shaped JSONL output"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Ammar", email = "ammarwaleed@proton.me" }]
+requires-python = ">=3.10"
+keywords = ["django", "security", "audit", "logging", "opentelemetry", "siem", "loki", "drf"]
+dependencies = [
+  "sec-audit>=0.1.0a1,<0.2",
+  "sec-audit-logging>=0.1.0a1,<0.2",
+  "django>=5.2,<6.1",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Framework :: Django",
+  "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://github.com/ammar39/sec-audit"
+Repository = "https://github.com/ammar39/sec-audit"
+Documentation = "https://github.com/ammar39/sec-audit/tree/main/packages/django-sec-audit/docs"
+Changelog = "https://github.com/ammar39/sec-audit/blob/main/CHANGELOG.md"
+Issues = "https://github.com/ammar39/sec-audit/issues"
+
+[project.optional-dependencies]
+model = ["django-auditlog>=2.0.0"]
+drf = ["djangorestframework>=3.15"]
+demo = ["django-auditlog>=2.0.0", "djangorestframework>=3.15"]
+full = ["django-auditlog>=2.0.0", "djangorestframework>=3.15"]
+dev = [
+  "build>=1.2",
+  "playwright>=1.44",
+  "pytest>=8",
+  "ruff>=0.8",
+  "twine>=5.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sec_audit"]
+only-include = [
+  "src/sec_audit/django",
+]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/sec_audit" = "sec_audit"
+
+[tool.hatch.build.targets.wheel.shared-data]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.format]
+quote-style = "single"

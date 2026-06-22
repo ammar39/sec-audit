@@ -1,0 +1,7 @@
+<group name="sec_audit,">
+  <rule id="100080" level="3">
+    <decoded_as>json</decoded_as>
+    <field name="attributes.schema_version">1.0</field>
+    <description>sec_audit event</description>
+  </rule>
+</group>

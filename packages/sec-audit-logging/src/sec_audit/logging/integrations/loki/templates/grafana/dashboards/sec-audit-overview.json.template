@@ -1,0 +1,100 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": {"calcs": ["sum"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "sum(count_over_time({service_name=\"{{ APP_LABEL }}\"}[$__range]))", "refId": "A"}],
+      "title": "Total audit events",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 4, "w": 10, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "sum by (event_type) (count_over_time({service_name=\"{{ APP_LABEL }}\"}[$__interval]))", "refId": "A"}],
+      "title": "Events over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": {"calcs": ["sum"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "sum(count_over_time({service_name=\"{{ APP_LABEL }}\", event_type=~\"auth.login.failed|auth.logout.failed|http.response.client_error|http.response.server_error\"}[$__range]))", "refId": "A"}],
+      "title": "Failures",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": {"calcs": ["sum"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "sum(count_over_time({service_name=\"{{ APP_LABEL }}\", event_type=~\"model.create|model.update|model.delete\"}[$__range]))", "refId": "A"}],
+      "title": "Model changes",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 4},
+      "id": 5,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "sum by (status_code) (count_over_time({service_name=\"{{ APP_LABEL }}\"} | json status_code=\"attributes['http.response.status_code']\" | status_code!=\"\" [$__interval]))", "refId": "A"}],
+      "title": "Status codes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 4},
+      "id": 6,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "sum by (method) (count_over_time({service_name=\"{{ APP_LABEL }}\"} | json method=\"attributes['http.request.method']\" | method!=\"\" [$__interval]))", "refId": "A"}],
+      "title": "Methods",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 4},
+      "id": 7,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "topk(10, sum by (source_address) (count_over_time({service_name=\"{{ APP_LABEL }}\"} | json source_address=\"attributes['source.address']\" | source_address!=\"\" [1h])))", "refId": "A"}],
+      "title": "Top source addresses",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 10},
+      "id": 8,
+      "options": {"dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": true, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "{service_name=\"{{ APP_LABEL }}\"}", "refId": "A"}],
+      "title": "Raw audit log explorer",
+      "type": "logs"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["sec-audit", "loki"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "{{ DASHBOARD_TITLE }}",
+  "uid": "sec-audit-overview",
+  "version": 1,
+  "weekStart": ""
+}

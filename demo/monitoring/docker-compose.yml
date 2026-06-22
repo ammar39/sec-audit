@@ -1,0 +1,40 @@
+# LOCAL-ONLY monitoring stack. Ports bind to 127.0.0.1 so Loki/Alloy/Grafana are
+# not exposed to the local network; do not publish these ports or reuse the
+# Grafana credentials in a shared/staging environment.
+services:
+  loki:
+    image: grafana/loki:3.0.0
+    command: -config.file=/etc/loki/local-config.yml
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./loki/local-config.yml:/etc/loki/local-config.yml:ro
+
+  # Grafana Alloy tails the OTel LogRecord JSONL audit file (the demo writes it
+  # via a stdlib RotatingFileHandler using the audit_jsonl formatter) and pushes
+  # to Loki. The pipeline is defined in alloy/config.alloy.
+  alloy:
+    image: grafana/alloy:v1.4.0
+    command: run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+    ports:
+      - "127.0.0.1:12345:12345"
+    volumes:
+      - ../logs/sec-audit.jsonl:/var/log/sec-audit/sec-audit.jsonl:ro
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - loki
+      - alloy

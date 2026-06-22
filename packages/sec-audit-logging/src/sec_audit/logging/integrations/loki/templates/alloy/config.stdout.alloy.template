@@ -1,0 +1,78 @@
+// Grafana Alloy stdout pipeline for django-sec-audit.
+//
+// Collects container stdout (OpenTelemetry LogRecord-shaped JSONL emitted via
+// the audit_stdout StreamHandler) and pushes it to Loki. Stdout collection is
+// the recommended production path; the file pipeline (config.alloy) is a
+// local/secondary example.
+//
+// Requires the Alloy container to access the Docker socket
+// (/var/run/docker.sock) and a container name/label filter that matches your
+// Django audit container. Values are templated by sec-audit-loki-init.
+//
+// Reference: https://grafana.com/docs/alloy/latest/
+
+// Discover the Django audit container. The name filter is templated from
+// --app-label; adjust it to match how your container is named or labeled.
+discovery.docker "django_audit" {
+  host = "unix:///var/run/docker.sock"
+  filter {
+    name   = "name"
+    values = ["{{ APP_LABEL }}.*"]
+  }
+}
+
+// Tail the container's stdout. Each JSONL line the Django process writes
+// becomes one Loki log entry with its full OTel body preserved.
+loki.source.docker "django_audit" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.django_audit.targets
+  forward_to = [loki.process.audit_stdout.receiver]
+}
+
+// Parse the OTel LogRecord body and project a small, bounded set of fields to
+// Loki stream labels. service_name is extracted from the record body
+// (resource.service.name = SEC_AUDIT['core']['source']) so the stream label
+// always matches the emitted record; only environment is a static deployment
+// label. Keep label cardinality low: everything else is reachable with the
+// | json LogQL stage.
+loki.process "audit_stdout" {
+  stage.json {
+    expressions = {
+      event_type   = "attributes.event_type",
+      severity     = "severity_text",
+      service_name = "resource.\"service.name\"",
+    }
+  }
+
+  stage.static_labels {
+    values = {
+      environment = "{{ ENVIRONMENT }}",
+    }
+  }
+
+  stage.labels {
+    values = {
+      event_type   = "event_type",
+      severity     = "severity",
+      service_name = "service_name",
+    }
+  }
+
+  // Drop internal labels Alloy adds by default; they are not part of the
+  // package contract and would inflate Loki stream cardinality otherwise.
+  stage.label_drop {
+    values = ["filename", "job", "container_name", "image"]
+  }
+
+  forward_to = [loki.write.loki.receiver]
+}
+
+// Push to the local Loki instance. Batch_wait/batch_size match the defaults
+// Alloy ships; tune for your environment if you need lower end-to-end latency.
+loki.write "loki" {
+  endpoint {
+    url        = "http://loki:3100/loki/api/v1/push"
+    batch_wait = "1s"
+    batch_size = "1MiB"
+  }
+}

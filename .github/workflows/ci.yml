@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Logging release boundary: sec-audit, sec-audit-logging, django-sec-audit.
+  # Validated on its own, WITHOUT sec-audit-rules installed. The root conftest
+  # skips the rules package tests and cross-distribution boundary tests when
+  # sec-audit-rules is absent.
+  logging:
+    name: Logging (py${{ matrix.python-version }} / ${{ matrix.django.label }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        django:
+          - label: django52
+            spec: 'django>=5.2,<6.0'
+          - label: django60
+            spec: 'django>=6.0,<6.1'
+        exclude:
+          # Django 6.0 requires Python 3.12+.
+          - python-version: '3.10'
+            django:
+              label: django60
+              spec: 'django>=6.0,<6.1'
+          - python-version: '3.11'
+            django:
+              label: django60
+              spec: 'django>=6.0,<6.1'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install logging release and tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e packages/sec-audit \
+            -e packages/sec-audit-logging \
+            -e 'packages/django-sec-audit[full]' \
+            pytest ruff
+          python -m pip install '${{ matrix.django.spec }}'
+      - name: Run tests
+        run: pytest -q
+      - name: Run Ruff lint
+        run: ruff check .
+      - name: Run Ruff format check
+        run: ruff format --check .
+      - name: Run Django system check
+        run: python demo/manage.py check
+
+  # Independent rules boundary: sec-audit-rules (plus the rest of the workspace
+  # so the cross-distribution namespace/boundary tests also run here).
+  rules:
+    name: Rules (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install rules release and tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e packages/sec-audit \
+            -e packages/sec-audit-logging \
+            -e 'packages/sec-audit-rules[wazuh]' \
+            -e 'packages/django-sec-audit[full]' \
+            pytest
+      - name: Run tests
+        run: pytest -q
+
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build and validate all distributions
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build twine
+          python -m build --outdir dist/sec-audit packages/sec-audit
+          python -m build --outdir dist/sec-audit-logging packages/sec-audit-logging
+          python -m build --outdir dist/sec-audit-rules packages/sec-audit-rules
+          python -m build --outdir dist/django-sec-audit packages/django-sec-audit
+          python -m twine check \
+            dist/sec-audit/* \
+            dist/sec-audit-logging/* \
+            dist/sec-audit-rules/* \
+            dist/django-sec-audit/*
+
+  # Install ONLY the built wheels into a clean venv (no editable installs) and
+  # prove the four-distribution namespace composes, django.setup() runs, and one
+  # real AuditEvent formats to a single valid JSON line.
+  smoke:
+    name: Clean-wheel smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build wheels
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel --outdir dist packages/sec-audit
+          python -m build --wheel --outdir dist packages/sec-audit-logging
+          python -m build --wheel --outdir dist packages/sec-audit-rules
+          python -m build --wheel --outdir dist packages/django-sec-audit
+      - name: Install only the built wheels in a fresh venv
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/python -m pip install --upgrade pip
+          /tmp/clean/bin/python -m pip install 'django>=5.2,<6.1'
+          /tmp/clean/bin/python -m pip install --pre --no-index --find-links dist \
+            sec-audit sec-audit-logging sec-audit-rules django-sec-audit
+      - name: Smoke test the installed wheels
+        run: /tmp/clean/bin/python .github/scripts/smoke_wheels.py

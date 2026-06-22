@@ -1,0 +1,43 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>django-sec-audit Demo</title>
+    <link rel="stylesheet" href="{% static 'fintech/style.css' %}">
+</head>
+<body>
+    <main class="shell">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">django-sec-audit demo</p>
+                <h1>Fintech Audit Logging</h1>
+            </div>
+        </header>
+
+        <section class="workspace">
+            <div class="panel">
+                <div class="section-head">
+                    <h2>Endpoints</h2>
+                </div>
+                <p>
+                    Exercise the demo endpoints below to generate audit events,
+                    then inspect <code>logs/sec-audit.jsonl</code> for the OTel
+                    JSONL output (HTTP responses, auth signals, model changes,
+                    scrubbed request bodies).
+                </p>
+                <ul>
+                    <li><a href="/accounts/">GET /accounts/</a> &mdash; list accounts (model access events)</li>
+                    <li><a href="/accounts/acct-demo-1001/">GET /accounts/&lt;id&gt;/</a> &mdash; account detail</li>
+                    <li><a href="/transfers/">POST /transfers/</a> &mdash; create a transfer</li>
+                    <li><a href="/transfers/high-risk/">POST /transfers/high-risk/</a> &mdash; route to risk review</li>
+                    <li><a href="/auth/login/">POST /auth/login/</a> &mdash; demo login (auth signal)</li>
+                    <li><a href="/profile/update/">POST /profile/update/</a> &mdash; update profile (scrubbed body capture)</li>
+                    <li><a href="/demo/generate-events/">GET /demo/generate-events/</a> &mdash; generate synthetic traffic</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
