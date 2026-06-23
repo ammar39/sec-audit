@@ -1,0 +1,8 @@
+title: sec_audit enforcement evaluation failed
+logsource:
+  product: python
+detection:
+  selection:
+    attributes.event_type: audit.enforcement.evaluation_failed
+  condition: selection
+level: critical

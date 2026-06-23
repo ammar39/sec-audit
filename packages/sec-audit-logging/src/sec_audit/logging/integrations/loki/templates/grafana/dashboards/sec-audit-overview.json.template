@@ -84,6 +84,75 @@
       "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "{service_name=\"{{ APP_LABEL }}\"}", "refId": "A"}],
       "title": "Raw audit log explorer",
       "type": "logs"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 2, "w": 24, "x": 0, "y": 18},
+      "id": 9,
+      "options": {"mode": "markdown", "content": "## Enforcement (audit.enforcement.*)"},
+      "title": "Enforcement",
+      "type": "text"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 20},
+      "id": 10,
+      "options": {"colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": {"calcs": ["sum"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "sum(count_over_time({service_name=\"{{ APP_LABEL }}\", event_type=\"audit.enforcement.blocked\"}[$__range]))", "refId": "A"}],
+      "title": "Requests blocked",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 20},
+      "id": 11,
+      "options": {"colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": {"calcs": ["sum"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "sum(count_over_time({service_name=\"{{ APP_LABEL }}\", event_type=\"audit.enforcement.block_applied\"}[$__range]))", "refId": "A"}],
+      "title": "Blocks applied",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 20},
+      "id": 12,
+      "options": {"colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": {"calcs": ["sum"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "sum(count_over_time({service_name=\"{{ APP_LABEL }}\", event_type=\"audit.enforcement.evaluation_failed\"}[$__range]))", "refId": "A"}],
+      "title": "Evaluation failures",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 20},
+      "id": 13,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "sum by (event_type) (count_over_time({service_name=\"{{ APP_LABEL }}\", event_type=~\"audit.enforcement.*\"}[$__interval]))", "refId": "A"}],
+      "title": "Enforcement events over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 0, "y": 24},
+      "id": 14,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "topk(10, sum by (rule_name) (count_over_time({service_name=\"{{ APP_LABEL }}\", event_type=~\"audit.enforcement.blocked|audit.enforcement.block_applied\"} | json rule_name=\"attributes['security_rule.name']\" | rule_name!=\"\" [$__interval])))", "refId": "A"}],
+      "title": "Blocks by rule",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 6, "y": 24},
+      "id": 15,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "sum by (scope_type) (count_over_time({service_name=\"{{ APP_LABEL }}\", event_type=~\"audit.enforcement.*\"} | json scope_type=\"attributes['scope.type']\" | scope_type!=\"\" [$__interval]))", "refId": "A"}],
+      "title": "Blocks by scope type",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

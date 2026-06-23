@@ -81,5 +81,10 @@ them. Useful queries:
 - Track `audit.enforcement.blocked` rate to size the impact of a block on real
   traffic.
 
+The `sec-audit-logging` Grafana dashboard ships an **Enforcement** row and
+`loki/queries.md` has ready-made enforcement LogQL recipes; the `sec-audit-rules`
+Wazuh ruleset alerts on these events. See [Operations → Monitoring
+checklist](operations.md#monitoring-checklist).
+
 There is **no feedback loop**: emitted `audit.enforcement.*` events are on the
 rule engine's skip-list, so they are never re-evaluated.

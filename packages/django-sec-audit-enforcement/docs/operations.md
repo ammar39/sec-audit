@@ -119,4 +119,12 @@ no manual step needed. Permanent bans are cached with `permanent_cache_ttl`
   a new or custom rule that's over-firing before it impacts real users.
 - **Track** `audit.enforcement.blocked` rate to understand enforcement impact.
 
+These three are prebuilt. The `sec-audit-logging` Grafana dashboard has an
+**Enforcement** row (requests blocked, blocks applied, evaluation failures,
+blocks by rule/scope) and matching LogQL recipes in `loki/queries.md`; the
+`sec-audit-rules` Wazuh ruleset alerts on `audit.enforcement.blocked` /
+`block_applied` / `evaluation_failed` (ids `100081`–`100084` plus
+`sigma/enforcement-*.yml`). See
+[Shipping audit logs to Loki + Grafana](https://github.com/ammar39/sec-audit/blob/main/packages/django-sec-audit/docs/loki-setup.md).
+
 See [Enforcement events](events.md) for the full attribute reference.

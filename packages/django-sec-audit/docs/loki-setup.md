@@ -99,7 +99,7 @@ monitoring/
 ├── loki/queries.md                            # LogQL recipes, prefilled with your --app-label
 ├── grafana/provisioning/datasources/loki.yml
 ├── grafana/provisioning/dashboards/dashboards.yml
-├── grafana/dashboards/sec-audit-overview.json # prebuilt 8-panel dashboard
+├── grafana/dashboards/sec-audit-overview.json # prebuilt dashboard (base + enforcement rows)
 └── README.md
 ```
 
@@ -172,6 +172,19 @@ topk(10, sum by (source_address) (count_over_time(
 ```
 
 The generated `monitoring/loki/queries.md` has the full recipe set, prefilled with your label.
+
+### Enforcement events
+
+If you also run `django-sec-audit-enforcement`, its `audit.enforcement.*` events
+ride this same logger and pipeline — no extra config. The dashboard ships an
+**Enforcement** row (requests blocked, blocks applied, evaluation failures,
+blocks by rule/scope), and `queries.md` has a matching "Enforcement Events"
+section. Example:
+
+```logql
+# Requests blocked over the range
+sum(count_over_time({service_name="myapp", event_type="audit.enforcement.blocked"}[$__range]))
+```
 
 ## Production notes
 

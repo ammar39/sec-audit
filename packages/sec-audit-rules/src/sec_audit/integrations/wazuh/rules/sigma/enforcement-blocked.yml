@@ -1,0 +1,8 @@
+title: sec_audit enforcement blocked
+logsource:
+  product: python
+detection:
+  selection:
+    attributes.event_type: audit.enforcement.blocked
+  condition: selection
+level: high

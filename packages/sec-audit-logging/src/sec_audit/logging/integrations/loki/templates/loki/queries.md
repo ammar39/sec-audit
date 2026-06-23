@@ -80,3 +80,73 @@ topk(10,
 ```logql
 {service_name="{{ APP_LABEL }}"}
 ```
+
+## Enforcement Events
+
+These recipes cover the `audit.enforcement.*` events emitted by
+`django-sec-audit-enforcement`. They ride the same logger, formatter, and
+JSONL schema as the base events above, so no extra Loki/Alloy configuration is
+needed — only `service_name="{{ APP_LABEL }}"`.
+
+### All Enforcement Events
+
+```logql
+{service_name="{{ APP_LABEL }}", event_type=~"audit.enforcement.*"}
+```
+
+### Requests Blocked
+
+```logql
+sum(count_over_time({
+  service_name="{{ APP_LABEL }}",
+  event_type="audit.enforcement.blocked"
+}[$__range]))
+```
+
+### Blocks Applied
+
+```logql
+sum(count_over_time({
+  service_name="{{ APP_LABEL }}",
+  event_type="audit.enforcement.block_applied"
+}[$__range]))
+```
+
+### Blocks By Rule
+
+```logql
+topk(10,
+  sum by (rule_name) (
+    count_over_time({
+      service_name="{{ APP_LABEL }}",
+      event_type=~"audit.enforcement.blocked|audit.enforcement.block_applied"
+    } | json rule_name="attributes['security_rule.name']" | rule_name!="" [$__interval])
+  )
+)
+```
+
+### Blocks By Scope Type
+
+```logql
+sum by (scope_type) (
+  count_over_time({
+    service_name="{{ APP_LABEL }}",
+    event_type=~"audit.enforcement.*"
+  } | json scope_type="attributes['scope.type']" | scope_type!="" [$__interval])
+)
+```
+
+### Evaluation Failures By Fail Mode
+
+`audit.enforcement.evaluation_failed` should sit near zero. A spike means the
+block store or rule engine errored; `enforcement.fail_mode` shows whether the
+request was allowed (`open`) or denied (`closed`).
+
+```logql
+sum by (fail_mode) (
+  count_over_time({
+    service_name="{{ APP_LABEL }}",
+    event_type="audit.enforcement.evaluation_failed"
+  } | json fail_mode="attributes['enforcement.fail_mode']" | fail_mode!="" [$__interval])
+)
+```

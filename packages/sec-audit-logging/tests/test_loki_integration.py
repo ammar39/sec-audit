@@ -73,14 +73,17 @@ def test_loki_init_copies_logging_only_assets(tmp_path):
     ]
     assert any('{service_name="test-app"}' in expr for expr in expressions)
     assert all('audit.rule' not in expr for expr in expressions)
-    assert all('audit.enforcement' not in expr for expr in expressions)
+    # enforcement panels (audit.enforcement.*) are part of the shipped dashboard.
+    assert any('audit.enforcement.blocked' in expr for expr in expressions)
+    assert any('audit.enforcement.evaluation_failed' in expr for expr in expressions)
 
     assert 'service_name' in queries
     assert 'environment' in queries
     assert 'severity' in queries
     assert 'event_type' in queries
     assert 'audit.rule' not in queries
-    assert 'audit.enforcement' not in queries
+    # enforcement LogQL recipes ship in queries.md.
+    assert 'audit.enforcement.blocked' in queries
     assert 'sec_audit.audit' in readme
 
 

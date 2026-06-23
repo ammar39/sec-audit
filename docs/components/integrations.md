@@ -9,6 +9,15 @@ OTLP export.
 **`sec-audit-rules`** — Wazuh XML rules and Sigma YAML rules for SIEM
 correlation. See `sec_audit.integrations.wazuh`.
 
+These assets cover both `django-sec-audit` events (`http.response.*`,
+`auth.*`, `model.*`) and the `audit.enforcement.*` events emitted by
+`django-sec-audit-enforcement`. Enforcement events ride the same logger,
+formatter, and JSONL schema, so a single Alloy → Loki → Grafana stack serves
+both packages: the Grafana dashboard has an **Enforcement** row, `queries.md`
+has enforcement LogQL recipes, and the Wazuh ruleset (`0375-sec-audit.xml`
+ids `100081`–`100084`, plus the `sigma/enforcement-*.yml` rules) alerts on
+blocks and evaluation failures.
+
 Primary path:
 
 ```text

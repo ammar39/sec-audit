@@ -4,4 +4,28 @@
     <field name="attributes.schema_version">1.0</field>
     <description>sec_audit event</description>
   </rule>
+
+  <rule id="100081" level="8">
+    <if_sid>100080</if_sid>
+    <field name="attributes.event_type">audit.enforcement.blocked</field>
+    <description>sec_audit: request blocked by enforcement policy</description>
+  </rule>
+
+  <rule id="100082" level="10">
+    <if_sid>100080</if_sid>
+    <field name="attributes.event_type">audit.enforcement.block_applied</field>
+    <description>sec_audit: enforcement block applied</description>
+  </rule>
+
+  <rule id="100083" level="12">
+    <if_sid>100080</if_sid>
+    <field name="attributes.event_type">audit.enforcement.evaluation_failed</field>
+    <description>sec_audit: enforcement evaluation failed (store/engine error)</description>
+  </rule>
+
+  <rule id="100084" level="3">
+    <if_sid>100080</if_sid>
+    <field name="attributes.event_type">audit.enforcement.block_revoked</field>
+    <description>sec_audit: enforcement block revoked</description>
+  </rule>
 </group>
