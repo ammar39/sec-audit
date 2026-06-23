@@ -22,63 +22,33 @@ inert until `SEC_AUDIT_ENFORCEMENT['enabled']` is set.
 - **No feedback loop:** emitted `audit.enforcement.*` events are skipped by the
   rule engine.
 
-See `SEC_AUDIT_ENFORCEMENT` settings and the architecture/implementation docs
-under `plans/django-enforcement-package/` for the full design.
+## Documentation
+
+Full docs live in [`docs/`](docs/):
+
+- [Getting started](docs/getting-started.md) — install, `INSTALLED_APPS`/`MIDDLEWARE`, migrate, enable, verify
+- [Configuration](docs/configuration.md) — every `SEC_AUDIT_ENFORCEMENT` key + `rule_actions`/`block_rules`
+- [Architecture](docs/architecture.md) — the ingress/egress paths, the tiered store, fail modes
+- [Custom rules](docs/custom-rules.md) — write and register your own `Rule`
+- [Enforcement events](docs/events.md) — the four `audit.enforcement.*` events
+- [Operations](docs/operations.md) — deploy tiers, system checks, the `PermanentBlock` model, revocation
 
 ## Custom rules
 
-The package ships three built-in rules (`brute_force_login`, `login_throttle`,
-`repeated_client_error`). You can register your own detectors via the
-`SEC_AUDIT_ENFORCEMENT['rules']` setting — they are **appended to** the built-in
-defaults (the defaults always stay on).
-
-A rule is a subclass of `sec_audit.rules.Rule` that implements
-`evaluate(self, event, ctx)` and returns a `RuleMatch` (use the `make_match`
-helper) when it fires, or `None` otherwise. Declare a unique, non-empty `name`;
-if your rule needs counters/history, declare a `context = ContextRequirements(...)`.
-
-```python
-# myapp/security/rules.py
-from sec_audit.rules import Rule
-from sec_audit.rules.base import make_match
-
-class GeoVelocityRule(Rule):
-    name = 'geo_velocity'
-    severity = 5
-    event_types = {'auth.login.succeeded'}
-
-    def evaluate(self, event, ctx):
-        if self._impossible_travel(event, ctx):
-            return make_match(
-                rule_name=self.name, severity=self.severity,
-                now=ctx.now, message='impossible travel', event=event,
-            )
-        return None
-```
-
-Register it (a dotted path to the class/instance, or an instantiated `Rule`):
+The three built-in rules (`brute_force_login`, `login_throttle`,
+`repeated_client_error`) can be extended with your own. Subclass
+`sec_audit.rules.Rule`, then register it via `SEC_AUDIT_ENFORCEMENT['rules']`
+(appended to the built-ins):
 
 ```python
 SEC_AUDIT_ENFORCEMENT = {
     'enabled': True,
     'rules': ['myapp.security.rules.GeoVelocityRule'],
-    # A custom rule OBSERVES (detect + log, no block) until you map its name to
-    # an action. Add a rule_actions entry to make it block:
+    # observe-only until you map the rule's name to an action:
     'rule_actions': {'geo_velocity': {'action': 'temp_block', 'scopes': ['ip']}},
-    'block_rules': {'geo_velocity': 600},  # optional TTL (seconds) for temp blocks
 }
 ```
 
-Two things to know:
-
-- **Observe-only by default.** A rule with no `rule_actions` entry detects and
-  logs but does not block — add `rule_actions['<name>']` to enable enforcement.
-- **Inline (pre-response) enforcement requires `safe_for_enforcement = True`.**
-  By default rules run on the **egress** path (after the response, off the
-  recorded event). Only set `safe_for_enforcement = True` for a cheap,
-  side-effect-free rule you want evaluated on the ingress fast path.
-
-Config is validated fail-fast at app `ready()`: a malformed import path, a
-non-`Rule` object, an empty name, or a name colliding with a built-in raises
-`AuditConfigurationError`. The rule module itself is imported lazily on first
-request (so its import side effects don't run during settings parsing).
+A custom rule observes (detect + log, no block) until it has a `rule_actions`
+entry, and runs on the egress path unless it sets `safe_for_enforcement = True`.
+See the full [Custom rules guide](docs/custom-rules.md).

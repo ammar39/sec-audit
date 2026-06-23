@@ -2,14 +2,17 @@
 
 ## Supported Versions
 
-`django-sec-audit` is currently pre-1.0. Security fixes are provided for the
-latest `0.3.x` release line only. Older alpha releases may contain incompatible
-schemas or APIs and should be upgraded before reporting production issues.
+The `sec-audit` family ships as five coordinated distributions —
+`sec-audit`, `sec-audit-logging`, `sec-audit-rules`, `django-sec-audit`, and
+`django-sec-audit-enforcement` — all currently in pre-1.0 alpha. Security fixes
+are provided only for the most recent alpha release of each distribution. Older
+alpha releases may contain incompatible schemas or APIs and should be upgraded
+before reporting production issues.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.3.x   | Yes                |
-| < 0.3   | No                 |
+| Version                  | Supported          |
+| ------------------------ | ------------------ |
+| Latest `0.1.0aN` alpha   | Yes                |
+| Earlier `0.1.0aN` alphas | No                 |
 
 ## Reporting a Vulnerability
 
