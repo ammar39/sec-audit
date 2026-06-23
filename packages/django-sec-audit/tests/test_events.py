@@ -22,9 +22,11 @@ class _CaptureRuntime:
     def __init__(self, settings):
         self.config = SecAuditSettings.from_settings(settings)
         self.events = []
+        self.emits = []
 
-    def record(self, event, level):
+    def record(self, event, level, *, emit=True):
         self.events.append((event, level))
+        self.emits.append(emit)
 
 
 class _Request:
@@ -621,6 +623,75 @@ def test_redirect_gated_like_success_when_ok_responses_disabled():
         _restore_runtime(previous)
 
     assert runtime.events == []
+
+
+def test_good_response_reaches_engine_when_consumer_present_even_if_logging_off():
+    # With a rules/enforcement consumer registered, a 2xx and a 3xx are built and
+    # handed to record() even though log_ok_responses is False — emit=False keeps
+    # them out of the log while the consumer still sees them.
+    runtime = _CaptureRuntime({'SEC_AUDIT': {'core': {'log_ok_responses': False}}})
+    previous = _set_runtime(runtime)
+
+    def _consumer(event):
+        pass
+
+    audit_runtime.register_rule_event_consumer(_consumer)
+    try:
+        AuditMiddleware(lambda r: _Response(200))(_Request())
+        AuditMiddleware(lambda r: _Response(302))(_Request())
+    finally:
+        audit_runtime.unregister_rule_event_consumer(_consumer)
+        _restore_runtime(previous)
+
+    assert len(runtime.events) == 2
+    assert runtime.emits == [False, False]
+    assert runtime.events[0][0].event_type == EventType.HTTP_RESPONSE_SUCCESS
+    assert runtime.events[1][0].event_type == EventType.HTTP_RESPONSE_REDIRECT
+
+
+def test_good_response_skipped_when_no_consumer_and_logging_off():
+    # No consumer + log_ok_responses False: the event is not even built — today's
+    # behavior (and per-request cost) is preserved for logging-only deployments.
+    runtime = _CaptureRuntime({'SEC_AUDIT': {'core': {'log_ok_responses': False}}})
+    previous = _set_runtime(runtime)
+    try:
+        AuditMiddleware(lambda r: _Response(200))(_Request())
+    finally:
+        _restore_runtime(previous)
+
+    assert runtime.events == []
+
+
+def test_record_emit_false_dispatches_to_consumer_without_logging():
+    # The runtime decouples logging from dispatch: emit=False skips emit_event but
+    # still feeds the consumer; emit=True does both.
+    emitted = []
+    received = []
+
+    class _FakeLogging:
+        def emit_event(self, event, level):
+            emitted.append((event, level))
+
+    rt = DjangoLoggingRuntime(config=None, logging=_FakeLogging())
+    event = build_audit_event(
+        Message.HTTP_RESPONSE,
+        EventType.HTTP_RESPONSE_SUCCESS,
+        {'status': 200},
+        schema_version='1.0',
+    )
+
+    def _consumer(evt):
+        received.append(evt)
+
+    audit_runtime.register_rule_event_consumer(_consumer)
+    try:
+        rt.record(event, logging.INFO, emit=False)
+        rt.record(event, logging.INFO, emit=True)
+    finally:
+        audit_runtime.unregister_rule_event_consumer(_consumer)
+
+    assert received == [event, event]
+    assert emitted == [(event, logging.INFO)]
 
 
 def test_http_route_uses_pattern_and_route_name_uses_view_name():

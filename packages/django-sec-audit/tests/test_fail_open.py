@@ -33,7 +33,7 @@ class _CaptureRuntime:
         self.config = SecAuditSettings.from_settings(settings)
         self.events = []
 
-    def record(self, event, level):
+    def record(self, event, level, *, emit=True):
         self.events.append((event, level))
 
 

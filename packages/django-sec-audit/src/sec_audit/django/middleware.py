@@ -19,7 +19,7 @@ from sec_audit.django.utils.request import (
 from sec_audit.django.logging.request_info import build_request_info
 from sec_audit.django.logging.routes import audit_route_info, resolve_request_match
 from sec_audit.django.logging.sessions import get_audit_session_id
-from sec_audit.django.runtime import get_runtime
+from sec_audit.django.runtime import get_runtime, has_rule_event_consumers
 
 
 class BaseAuditMiddleware:
@@ -154,23 +154,32 @@ class AuditMiddleware(BaseAuditMiddleware):
             )
         elif status >= 300:
             # 3xx is a distinct security-relevant class (e.g. a 302 auth
-            # redirect) — not a 2xx success. Gated like other non-error
-            # responses so it does not change the success-logging noise profile.
-            if self._should_emit_non_error_response():
-                self._record(
-                    EventType.HTTP_RESPONSE_REDIRECT,
-                    event_base,
-                    logging.INFO,
-                    request=request,
-                )
+            # redirect) — not a 2xx success. The non-error gate controls only
+            # whether it is logged; rules still see it when a consumer is
+            # registered (see _record_non_error).
+            self._record_non_error(
+                EventType.HTTP_RESPONSE_REDIRECT,
+                event_base,
+                logging.INFO,
+                request=request,
+            )
         else:
-            if self._should_emit_non_error_response():
-                self._record(
-                    EventType.HTTP_RESPONSE_SUCCESS,
-                    event_base,
-                    logging.INFO,
-                    request=request,
-                )
+            self._record_non_error(
+                EventType.HTTP_RESPONSE_SUCCESS,
+                event_base,
+                logging.INFO,
+                request=request,
+            )
+
+    def _record_non_error(self, event_type, data, level, *, request=None):
+        emit = self._should_emit_non_error_response()
+        # Rules/enforcement must see good responses even when logging is
+        # suppressed (log_ok_responses=False or sampled out). Only skip the
+        # (expensive) event build when nothing would consume it: no logging
+        # AND no registered consumer.
+        if not emit and not has_rule_event_consumers():
+            return
+        self._record(event_type, data, level, request=request, emit=emit)
 
     def _should_emit_non_error_response(self) -> bool:
         return self.config.log_ok_responses and (
@@ -184,6 +193,7 @@ class AuditMiddleware(BaseAuditMiddleware):
         level,
         *,
         request=None,
+        emit=True,
     ):
         event = build_audit_event(
             Message.HTTP_RESPONSE,
@@ -192,4 +202,4 @@ class AuditMiddleware(BaseAuditMiddleware):
             schema_version=self.runtime.config.logging.schema_version,
             include_usernames=self.runtime.config.django.include_usernames,
         )
-        self.runtime.record(event, level)
+        self.runtime.record(event, level, emit=emit)

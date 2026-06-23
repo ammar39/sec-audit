@@ -27,6 +27,7 @@ _rule_event_consumers: list = []
 __all__ = [
     'DjangoLoggingRuntime',
     'get_runtime',
+    'has_rule_event_consumers',
     'register_rule_event_consumer',
     'unregister_rule_event_consumer',
 ]
@@ -37,12 +38,21 @@ class DjangoLoggingRuntime:
     config: SecAuditSettings
     logging: LoggingRuntime
 
-    def record(self, event: AuditEvent, level: int) -> None:
-        try:
-            self.logging.emit_event(event, level)
-        except Exception:
-            diagnostic_warning('audit.emit_failed', 'Audit record emission failed')
+    def record(self, event: AuditEvent, level: int, *, emit: bool = True) -> None:
+        # Logging and rule-dispatch are decoupled: ``emit=False`` skips the log
+        # but still feeds the event to registered consumers. Callers use this to
+        # let rules see good responses whose logging is suppressed
+        # (log_ok_responses=False or sampled out).
+        if emit:
+            try:
+                self.logging.emit_event(event, level)
+            except Exception:
+                diagnostic_warning('audit.emit_failed', 'Audit record emission failed')
         _dispatch_to_consumers(event)
+
+
+def has_rule_event_consumers() -> bool:
+    return bool(_rule_event_consumers)
 
 
 def register_rule_event_consumer(consumer) -> None:
