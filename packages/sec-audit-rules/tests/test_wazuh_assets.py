@@ -17,12 +17,15 @@ def test_wazuh_xml_alerts_on_enforcement_events():
     assert 'audit.enforcement.blocked' in xml
     assert 'audit.enforcement.block_applied' in xml
     assert 'audit.enforcement.evaluation_failed' in xml
+    assert 'audit.enforcement.alert' in xml
 
 
 def test_sigma_enforcement_rules_use_canonical_event_type_path():
     sigma_dir = files('sec_audit.integrations.wazuh').joinpath('rules', 'sigma')
     blocked = sigma_dir.joinpath('enforcement-blocked.yml').read_text()
     failed = sigma_dir.joinpath('enforcement-evaluation-failed.yml').read_text()
+    alert = sigma_dir.joinpath('enforcement-alert.yml').read_text()
 
     assert 'attributes.event_type: audit.enforcement.blocked' in blocked
     assert 'attributes.event_type: audit.enforcement.evaluation_failed' in failed
+    assert 'attributes.event_type: audit.enforcement.alert' in alert

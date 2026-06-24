@@ -112,6 +112,21 @@ sum(count_over_time({
 }[$__range]))
 ```
 
+### Alerts (Detection, No Block)
+
+`audit.enforcement.alert` is an alert-only rule match — surfaced for visibility,
+never blocked. Track its rate to see detections that did **not** escalate to a
+block; group by `security_rule.name` to see which detectors are firing.
+
+```logql
+sum by (rule_name) (
+  count_over_time({
+    service_name="{{ APP_LABEL }}",
+    event_type="audit.enforcement.alert"
+  } | json rule_name="attributes['security_rule.name']" | rule_name!="" [$__interval])
+)
+```
+
 ### Blocks By Rule
 
 ```logql

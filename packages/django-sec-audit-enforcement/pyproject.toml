@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "django-sec-audit-enforcement"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "Redis + Postgres enforcement layer for django-sec-audit: temp/permanent blocks, ingress check, OTel enforcement events"
 readme = "README.md"
 license = "MIT"

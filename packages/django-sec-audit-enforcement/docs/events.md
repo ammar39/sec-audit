@@ -2,7 +2,7 @@
 
 Every enforcement decision is emitted as an OTel-shaped audit event on the
 existing `sec_audit.audit` logger — the same JSONL pipeline as `django-sec-audit`
-(scrubbing and the size bound are applied by that pipeline). There are four event
+(scrubbing and the size bound are applied by that pipeline). There are five event
 types, all prefixed `audit.enforcement.`.
 
 `body` is the event-type string only; all structured context is in `attributes`.
@@ -11,10 +11,28 @@ severity number the formatter writes.
 
 | Event type | When | Level (OTel severity) |
 |------------|------|-----------------------|
+| `audit.enforcement.alert` | A rule matched but resolved to `alert` — surfaced, **not** blocked | WARNING (13) |
 | `audit.enforcement.blocked` | An incoming request matched an active block (ingress) | WARNING (13) |
 | `audit.enforcement.block_applied` | A new block was applied (temp or permanent) | WARNING (13) |
 | `audit.enforcement.block_revoked` | A block was revoked | INFO (9) |
 | `audit.enforcement.evaluation_failed` | A store/engine error occurred (fail-open/closed) | ERROR (17) |
+
+## `audit.enforcement.alert`
+
+A rule matched and its resolved action is `alert` — a detect-and-surface
+decision that takes **no** blocking action and writes nothing to the block store.
+Emitted once per match so alert-only rules (e.g. `resource_enumeration`) are
+observable always-on, without having to stream every success response. The
+`observe` action stays silent (no event).
+
+| Attribute | Example | Notes |
+|-----------|---------|-------|
+| `security_rule.name` | `"resource_enumeration"` | The rule that matched |
+| `security_rule.severity` | `5` | Rule severity (1–10) |
+| `security_rule.description` | `"one IP touched 20+ resources"` | The match message |
+| `enforcement.action` | `"alert"` | literal |
+| `source.address` | `"203.0.113.10"` | Client IP from the match (omitted if unknown) |
+| `session.id` | `"sess_xyz"` | Session from the match (omitted if absent) |
 
 ## `audit.enforcement.blocked`
 

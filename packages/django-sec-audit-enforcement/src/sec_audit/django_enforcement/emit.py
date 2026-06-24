@@ -1,4 +1,4 @@
-"""Builders for the four ``audit.enforcement.*`` OTel events + the emitter.
+"""Builders for the ``audit.enforcement.*`` OTel events + the emitter.
 
 Builders return ``(AuditEvent, level)``. The stdlib logging ``level`` drives the
 OTel severity number the formatter writes (WARN 13 / ERROR 17 / INFO 9), per the
@@ -16,6 +16,7 @@ from typing import Callable
 
 from sec_audit.core.events import AuditEvent
 
+ALERT = 'audit.enforcement.alert'
 BLOCKED = 'audit.enforcement.blocked'
 BLOCK_APPLIED = 'audit.enforcement.block_applied'
 BLOCK_REVOKED = 'audit.enforcement.block_revoked'
@@ -33,6 +34,27 @@ def _event(event_type: str, schema_version: str, attributes: dict) -> AuditEvent
         body=event_type,
         attributes=attributes,
     )
+
+
+def build_alert_event(match, *, schema_version: str):
+    """An alert-only match: surfaced for observability, never blocked.
+
+    Emitted once per match (not per scope) so alert-only rules are visible in
+    Loki/Grafana/Wazuh always-on, without blocking. Built from the ``match`` so
+    the ingress, egress, and sink paths all produce the same shape.
+    """
+    severity = getattr(match, 'severity', None)
+    attrs = _attrs(
+        {
+            'security_rule.name': match.rule_name,
+            'security_rule.severity': int(severity) if severity is not None else None,
+            'security_rule.description': match.message,
+            'enforcement.action': 'alert',  # literal, mirrors blocked/block_applied
+            'source.address': match.srcip or '',
+            'session.id': match.session_id or '',
+        }
+    )
+    return _event(ALERT, schema_version, attrs), logging.WARNING
 
 
 def build_blocked_event(entry, *, schema_version: str):

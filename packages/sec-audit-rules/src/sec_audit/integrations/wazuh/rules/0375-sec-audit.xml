@@ -28,4 +28,10 @@
     <field name="attributes.event_type">audit.enforcement.block_revoked</field>
     <description>sec_audit: enforcement block revoked</description>
   </rule>
+
+  <rule id="100085" level="6">
+    <if_sid>100080</if_sid>
+    <field name="attributes.event_type">audit.enforcement.alert</field>
+    <description>sec_audit: enforcement alert (rule matched, no block applied)</description>
+  </rule>
 </group>

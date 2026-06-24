@@ -1,0 +1,8 @@
+title: sec_audit enforcement alert
+logsource:
+  product: python
+detection:
+  selection:
+    attributes.event_type: audit.enforcement.alert
+  condition: selection
+level: medium

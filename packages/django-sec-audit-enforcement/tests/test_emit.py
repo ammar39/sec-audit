@@ -12,6 +12,39 @@ def _entry(**kw):
     return BlockEntry(**defaults)
 
 
+class _Match:
+    def __init__(self, **kw):
+        self.rule_name = kw.get('rule_name', 'resource_enumeration')
+        self.severity = kw.get('severity', 5)
+        self.message = kw.get('message', 'IP touched many distinct resources')
+        self.srcip = kw.get('srcip', '203.0.113.10')
+        self.session_id = kw.get('session_id', 'sess_xyz')
+
+
+def test_alert_event_shape():
+    event, level = emit.build_alert_event(_Match(), schema_version='1.0')
+    assert isinstance(event, AuditEvent)
+    assert event.event_type == 'audit.enforcement.alert'
+    assert event.body == 'audit.enforcement.alert'  # body is the type string
+    assert level == logging.WARNING
+    assert event.attributes['security_rule.name'] == 'resource_enumeration'
+    assert event.attributes['security_rule.severity'] == 5
+    assert event.attributes['security_rule.description'].startswith('IP touched')
+    assert event.attributes['enforcement.action'] == 'alert'
+    assert event.attributes['source.address'] == '203.0.113.10'
+    assert event.attributes['session.id'] == 'sess_xyz'
+
+
+def test_alert_event_omits_empty_subject():
+    event, _level = emit.build_alert_event(
+        _Match(srcip='', session_id=''), schema_version='1.0'
+    )
+    # empty/null attributes are filtered out (no block, no client context yet).
+    assert 'source.address' not in event.attributes
+    assert 'session.id' not in event.attributes
+    assert event.attributes['enforcement.action'] == 'alert'
+
+
 def test_blocked_event_shape():
     event, level = emit.build_blocked_event(_entry(), schema_version='1.0')
     assert isinstance(event, AuditEvent)

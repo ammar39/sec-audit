@@ -63,7 +63,15 @@ class Enforcer:
         """Apply ``action`` for ``match``; return ``(AuditEvent, level)`` pairs."""
         kind = self._action_kind(action, match)
         if kind is None:
-            return []  # observe / alert write nothing
+            if action.action == 'alert':
+                # Detect-and-surface: emit a per-match detection event so
+                # alert-only rules are observable always-on, without blocking.
+                return [
+                    emit_mod.build_alert_event(
+                        match, schema_version=self.schema_version
+                    )
+                ]
+            return []  # observe / unknown write nothing
         scopes = self.scope_registry.block_scopes(summary, only=action.scopes)
         metadata = self._safe_metadata(match)
         results = []

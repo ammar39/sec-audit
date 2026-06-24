@@ -11,6 +11,16 @@ breaking changes may land in minor releases).
 ## [Unreleased]
 
 ### Added
+- **Always-on alert detection event** for `django-sec-audit-enforcement`
+  (`0.1.0a2`): a rule that resolves to the `alert` action (detect-and-surface, no
+  block) now emits a lightweight per-match `audit.enforcement.alert` event
+  (WARNING / OTel severity 13) instead of being silently dropped, so alert-only
+  rules (e.g. `resource_enumeration`) are observable in Loki/Grafana/Wazuh without
+  blocking and without streaming every success response. `observe` stays silent.
+  The new event type is purely additive (`schema_version` unchanged) and rides the
+  existing enforcement skip-list, so it is never re-evaluated. Ships matching
+  consumer assets: Wazuh rule `100085` + `sigma/enforcement-alert.yml`, a Grafana
+  "Alerts (no block)" panel, and a `loki/queries.md` recipe.
 - **Rule-contributed history attributes** for `sec-audit-rules`: a `Rule` can override the
   new `history_attributes(event, ctx)` hook to persist its own derived data (e.g. an extracted
   resource id) under its namespace (`rule_attrs[<name>]`) in the per-event history summary, so

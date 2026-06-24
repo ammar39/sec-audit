@@ -93,6 +93,24 @@ def test_observe_action_writes_nothing():
     assert enf.apply(match, enf.resolve_action(match), {'srcip': '1.2.3.4'}) == []
 
 
+def test_alert_action_emits_event_without_block():
+    import logging
+
+    store = MemoryBlockStore()
+    enf = _enforcer(store, rule_actions={'r': 'alert'})
+    match = _match()
+    events = enf.apply(match, enf.resolve_action(match), {'srcip': '1.2.3.4'})
+    # exactly one detection event, surfaced at WARNING, never blocked.
+    assert len(events) == 1
+    event, level = events[0]
+    assert event.event_type == 'audit.enforcement.alert'
+    assert level == logging.WARNING
+    assert event.attributes['enforcement.action'] == 'alert'
+    assert event.attributes['security_rule.name'] == 'r'
+    # no block was written for the would-be scope.
+    assert store.get_active(BlockScope('ip', '1.2.3.4')) is None
+
+
 def test_persist_sink_path_emits_and_blocks_ip():
     store = MemoryBlockStore()
     emitted = []
