@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 from datetime import timedelta
-from typing import Callable, Sequence
+from typing import Callable, Iterable, Sequence
 
 from sec_audit.enforcement.blocks import DEFAULT_BLOCK_MESSAGE, BlockEntry, BlockScope
 
@@ -50,9 +50,19 @@ class MemoryBlockStore:
             self._blocks[self._key(scope)] = entry
         return entry
 
-    def unblock(self, scope: BlockScope, *, reason: str = '') -> int:
+    def unblock(
+        self, scope: BlockScope, *, reason: str = '', revoked_by: str = ''
+    ) -> int:
+        # ``revoked_by`` is accepted for store-interface uniformity; the in-memory
+        # store keeps no audit columns, so it is ignored.
         with self._lock:
             return 1 if self._blocks.pop(self._key(scope), None) is not None else 0
+
+    def active_blocks(self) -> Iterable[BlockEntry]:
+        with self._lock:
+            return [
+                entry for entry in self._blocks.values() if not self._expired(entry)
+            ]
 
     def get_active(self, scope: BlockScope) -> BlockEntry | None:
         with self._lock:

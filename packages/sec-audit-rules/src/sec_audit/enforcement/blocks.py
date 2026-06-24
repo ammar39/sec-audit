@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from types import MappingProxyType
-from typing import Mapping, Protocol, Sequence
+from typing import Iterable, Mapping, Protocol, Sequence
 
 DEFAULT_BLOCK_MESSAGE = 'Request blocked by audit enforcement policy'
 
@@ -55,8 +55,12 @@ class BlockStore(Protocol):
         metadata: Mapping[str, object] | None = None,
     ) -> BlockEntry: ...
 
-    def unblock(self, scope: BlockScope, *, reason: str = '') -> int: ...
+    def unblock(
+        self, scope: BlockScope, *, reason: str = '', revoked_by: str = ''
+    ) -> int: ...
 
     def get_active(self, scope: BlockScope) -> BlockEntry | None: ...
 
     def first_active(self, scopes: Sequence[BlockScope]) -> BlockEntry | None: ...
+
+    def active_blocks(self) -> Iterable[BlockEntry]: ...

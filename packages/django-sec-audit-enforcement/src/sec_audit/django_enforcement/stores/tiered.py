@@ -15,7 +15,7 @@ is also the durability guarantee for permanent bans.
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Iterable, Sequence
 
 from sec_audit.enforcement.blocks import DEFAULT_BLOCK_MESSAGE, BlockEntry, BlockScope
 
@@ -90,6 +90,14 @@ class TieredBlockStore:
         if self._pg is not None:
             count += self._pg.unblock(scope, reason=reason, revoked_by=revoked_by)
         return count
+
+    def active_blocks(self) -> Iterable[BlockEntry]:
+        # Durable (permanent) blocks only — the Postgres tier is the source of
+        # truth. Redis-only temp blocks are intentionally not enumerated (they
+        # auto-expire and are not operator-managed subjects).
+        if self._pg is None:
+            return []
+        return list(self._pg.active_blocks())
 
     def _cache_permanent(self, entry: BlockEntry) -> None:
         # Write-through: Postgres already holds the source of truth, so a cache

@@ -88,3 +88,21 @@ def test_unblock_clears_both_tiers(redis_client):
     assert store.unblock(user, reason='x') >= 1
     assert redis_client.get('sec_audit:block:user:42') is None
     assert PermanentBlock.objects.get(scope_type='user', scope_value='42').revoked_at
+
+
+def test_active_blocks_returns_permanent_rows_only(redis_client):
+    store = _tiered(redis_client)
+    store.block(BlockScope('user', '42'), ttl=None)
+    store.block(BlockScope('ip', '1.2.3.4'), ttl=300)  # temp = Redis only
+    listed = {(e.scope.scope_type, e.scope.scope_value) for e in store.active_blocks()}
+    assert listed == {('user', '42')}  # temp block not enumerated
+
+
+def test_active_blocks_empty_without_postgres(redis_client):
+    store = TieredBlockStore(
+        redis_store=RedisBlockStore(client=redis_client, key_prefix='sec_audit'),
+        postgres_store=None,
+        permanent_cache_ttl=3600,
+    )
+    store.block(BlockScope('user', '42'), ttl=None)  # degrades to long Redis entry
+    assert list(store.active_blocks()) == []

@@ -42,3 +42,26 @@ def test_permanent_block_has_no_expiry():
     ip = BlockScope('ip', '9.9.9.9')
     entry = store.block(ip, ttl=None)
     assert entry.expires_at is None
+
+
+def test_active_blocks_lists_unexpired():
+    store = MemoryBlockStore()
+    store.block(BlockScope('user', '1'), ttl=None)
+    store.block(BlockScope('ip', '2.2.2.2'), ttl=300)
+    scopes = {(e.scope.scope_type, e.scope.scope_value) for e in store.active_blocks()}
+    assert scopes == {('user', '1'), ('ip', '2.2.2.2')}
+
+
+def test_active_blocks_excludes_expired():
+    clock = _Clock(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    store = MemoryBlockStore(clock=clock)
+    store.block(BlockScope('ip', '1.1.1.1'), ttl=300)
+    clock.now += timedelta(seconds=301)
+    assert list(store.active_blocks()) == []
+
+
+def test_unblock_accepts_revoked_by():
+    store = MemoryBlockStore()
+    ip = BlockScope('ip', '3.3.3.3')
+    store.block(ip)
+    assert store.unblock(ip, reason='x', revoked_by='root') == 1
