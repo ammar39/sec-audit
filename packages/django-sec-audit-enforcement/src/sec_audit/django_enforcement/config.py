@@ -68,9 +68,10 @@ class DjangoEnforcementConfig:
     apply_via_sink: bool = False
     scope_specs: tuple[object, ...] = ()
     # User-registered custom rules: import-path strings (``"module.attr"``) to a
-    # ``Rule`` subclass/instance, or already-instantiated ``Rule`` objects. The
-    # actual import/instantiation is deferred to the lazy runtime build; only the
-    # ``"module.attr"`` shape of string entries is validated here, fail-fast.
+    # ``Rule`` subclass/instance, or already-instantiated ``Rule`` objects. Here
+    # only the ``"module.attr"`` shape of string entries is validated, fail-fast;
+    # the actual import/instantiation runs eagerly at ``ready()`` in
+    # ``setup_enforcement`` (via ``_all_rules``).
     rules: tuple[object, ...] = ()
     block_precedence: tuple[str, ...] = ()
     status_code: int = 429

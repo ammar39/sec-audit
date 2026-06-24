@@ -35,10 +35,11 @@ Full docs live in [`docs/`](docs/):
 
 ## Custom rules
 
-The three built-in rules (`brute_force_login`, `login_throttle`,
-`repeated_client_error`) can be extended with your own. Subclass
-`sec_audit.rules.Rule`, then register it via `SEC_AUDIT_ENFORCEMENT['rules']`
-(appended to the built-ins):
+The built-in rules (`brute_force_login`, `login_throttle`,
+`repeated_client_error`, and `resource_enumeration` — alert-only, and active only
+when a history store such as Redis is configured) can be extended with your own.
+Subclass `sec_audit.rules.Rule`, then register it via
+`SEC_AUDIT_ENFORCEMENT['rules']` (appended to the built-ins):
 
 ```python
 SEC_AUDIT_ENFORCEMENT = {

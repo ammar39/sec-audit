@@ -6,6 +6,7 @@ a ``rule_actions`` entry, and observes (no block) otherwise.
 """
 
 import pytest
+from django.test import override_settings
 from sec_audit.core.exceptions import AuditConfigurationError
 from sec_audit.django.events import build_audit_event
 from sec_audit.enforcement.blocks import BlockScope
@@ -16,6 +17,7 @@ from sec_audit.django_enforcement.runtime import (
     _all_rules,
     _build_runtime,
     _resolve_custom_rules,
+    setup_enforcement,
 )
 
 
@@ -142,3 +144,34 @@ def test_custom_rule_observes_without_action():
     rt = _build_runtime(_config(rules=[_AlwaysMatchRule()]))
     rt.handle_event(_client_error_event('203.0.113.66'))
     assert rt.block_store.first_active([BlockScope('ip', '203.0.113.66')]) is None
+
+
+# --- startup fail-fast (setup_enforcement at ready()) ----------------------
+
+
+@override_settings(
+    SEC_AUDIT_ENFORCEMENT={'enabled': True, 'rules': ['a.b.DoesNotExist']}
+)
+def test_setup_enforcement_fails_fast_on_bad_rule_import():
+    # A well-formed but unimportable path is resolved at ready() and crashes the
+    # boot, rather than being swallowed by the request-time fail-open. (AuditImport
+    # Error subclasses AuditConfigurationError.)
+    with pytest.raises(AuditConfigurationError):
+        setup_enforcement()
+
+
+@override_settings(
+    SEC_AUDIT_ENFORCEMENT={
+        'enabled': True,
+        'rules': ['tests.test_custom_rules._AlwaysMatchRule'],
+    }
+)
+def test_setup_enforcement_resolves_good_rules():
+    setup_enforcement()  # a valid rule set resolves cleanly — no raise
+
+
+@override_settings(
+    SEC_AUDIT_ENFORCEMENT={'enabled': False, 'rules': ['a.b.DoesNotExist']}
+)
+def test_setup_enforcement_skips_resolution_when_disabled():
+    setup_enforcement()  # gated on `enabled`: a bad rule is never resolved

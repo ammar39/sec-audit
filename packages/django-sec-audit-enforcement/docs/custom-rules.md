@@ -117,9 +117,12 @@ Configuration errors surface at app startup, not at request time:
 | Name collides with a built-in (e.g. `brute_force_login`) or another custom rule | `AuditConfigurationError` |
 
 The import-path **shape** is validated at settings-parse time; the rule module is
-imported **lazily** on the first request (so a rule module's import side effects
-don't run during settings parsing). A well-formed but non-existent path therefore
-surfaces at runtime build, not at `ready()`.
+then imported and resolved **eagerly at `ready()`** (in `setup_enforcement`), so
+a well-formed but non-existent path — or any other resolution failure — crashes
+the boot, naming the offending rule, rather than being swallowed by the
+request-time fail-open. Only store construction / the Redis connection stay lazy
+(deferred to the first request), so `migrate` / `check` / `collectstatic` still
+work when Redis is down.
 
 ## Testing your rule
 

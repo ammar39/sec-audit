@@ -1,9 +1,10 @@
 """Enforcement runtime: config-fail-fast at ready(), lazy store/engine build.
 
-``setup_enforcement`` (called from ``AppConfig.ready``) validates the config and,
-when enabled, registers the ``record()`` consumer — but it does NOT construct
-stores or connect to Redis, so ``migrate``/``check``/``collectstatic`` work even
-when Redis is down. The engine, block store, and Redis connection are built
+``setup_enforcement`` (called from ``AppConfig.ready``) validates the config,
+resolves the full rule set (importing any custom rule modules) fail-fast, and —
+when enabled — registers the ``record()`` consumer. It does NOT construct stores
+or connect to Redis, so ``migrate``/``check``/``collectstatic`` work even when
+Redis is down. The engine instance, block store, and Redis connection are built
 lazily on the first ``get_enforcement_runtime()`` (first request).
 """
 
@@ -14,9 +15,9 @@ import threading
 from dataclasses import dataclass
 
 from django.conf import settings
-from django.utils.module_loading import import_string
 
 from sec_audit.core.exceptions import AuditConfigurationError
+from sec_audit.core.imports import import_string
 from sec_audit.django.runtime import (
     get_runtime,
     register_rule_event_consumer,
@@ -28,6 +29,7 @@ from sec_audit.rules.builtins import (
     BruteForceLoginRule,
     LoginThrottleRule,
     RepeatedClientErrorRule,
+    ResourceEnumerationRule,
 )
 from sec_audit.rules.config import RulesAuditConfig
 from sec_audit.rules.engine import RuleEngine
@@ -95,12 +97,20 @@ class DjangoEnforcementRuntime:
 
 
 def setup_enforcement() -> None:
-    """Called from AppConfig.ready(): validate config fail-fast; register the
-    consumer when enabled. No store construction / Redis connection here."""
+    """Called from AppConfig.ready(): validate config + resolve rules fail-fast;
+    register the consumer when enabled. No store construction / Redis connection
+    here."""
     global _config
     config = DjangoEnforcementConfig.from_settings(settings)
     _config = config
     if config.enabled:
+        # Resolve the full rule set now so a deterministic config/import error in
+        # a custom rule spec fails the boot here — instead of being swallowed by
+        # the request-time fail-open in the middleware/consumer (which must stay
+        # fail-open for genuine Redis/store outages). Rule resolution touches no
+        # Redis, so migrate/check/collectstatic still work when Redis is down;
+        # the result is discarded — _build_runtime re-resolves lazily.
+        _all_rules(config)
         from sec_audit.django_enforcement.consumer import consume
 
         register_rule_event_consumer(consume)
@@ -231,19 +241,23 @@ def _default_rules():
     # Conservative, generally-applicable default set. brute_force_login counts
     # auth failures (egress); login_throttle is the ingress fast path; both are
     # wired to scope-safe temp ip-blocks via DEFAULT_RULE_ACTIONS.
+    # resource_enumeration is alert-only (not in DEFAULT_RULE_ACTIONS) and is a
+    # no-op until a history store is configured (i.e. Redis); it relies on the
+    # 'ip' scope, which is a registry default.
     return [
         BruteForceLoginRule(),
         LoginThrottleRule(),
         RepeatedClientErrorRule(),
+        ResourceEnumerationRule(),
     ]
 
 
 def _resolve_custom_rules(config: DjangoEnforcementConfig) -> list[Rule]:
     """Resolve ``config.rules`` specs into ``Rule`` instances.
 
-    Each spec is a dotted ``"module.attr"`` path (resolved here, deferred from
-    settings-parse so a rule module's import side effects don't run at
-    ``ready()``) or an already-instantiated ``Rule``. A path/object pointing at a
+    Each spec is a dotted ``"module.attr"`` path (the import runs here, eagerly
+    at ``ready()`` via ``setup_enforcement`` — settings-parse only validates the
+    path shape) or an already-instantiated ``Rule``. A path/object pointing at a
     ``Rule`` subclass is instantiated; a ``Rule`` instance is used as-is.
     """
     resolved: list[Rule] = []

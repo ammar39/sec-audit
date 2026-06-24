@@ -115,8 +115,11 @@ diagnostic event — enforcement never crashes a request.
 
 ## Startup model
 
-- `AppConfig.ready()` validates the config fail-fast and, when `enabled`,
-  registers the `record()` consumer. It does **not** open Redis or build stores,
-  so `migrate` / `check` / `collectstatic` work even when Redis is down.
-- The engine, block store, and Redis connection are built **lazily** on the first
-  `get_enforcement_runtime()` (first request), then cached.
+- `AppConfig.ready()` validates the config fail-fast, resolves the configured
+  rule set (importing any custom rule modules) so a bad rule crashes the boot
+  rather than being swallowed by the request-time fail-open, and — when
+  `enabled` — registers the `record()` consumer. It does **not** open Redis or
+  build stores, so `migrate` / `check` / `collectstatic` work even when Redis is
+  down (rule resolution touches no Redis).
+- The engine instance, block store, and Redis connection are built **lazily** on
+  the first `get_enforcement_runtime()` (first request), then cached.
