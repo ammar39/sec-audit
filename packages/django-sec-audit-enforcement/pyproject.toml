@@ -47,6 +47,12 @@ only-include = ["src/sec_audit/django_enforcement"]
 [tool.hatch.build.targets.wheel.sources]
 "src/sec_audit" = "sec_audit"
 
+[tool.hatch.build]
+# Admin templates ship as package data (the "Block manager" view renders them).
+artifacts = [
+  "src/sec_audit/django_enforcement/templates/**/*.html",
+]
+
 [tool.ruff]
 target-version = "py310"
 line-length = 88

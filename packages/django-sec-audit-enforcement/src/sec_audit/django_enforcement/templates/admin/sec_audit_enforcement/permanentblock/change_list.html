@@ -1,0 +1,11 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+  <li>
+    <a href="{% url 'admin:sec_audit_enforcement_permanentblock_manage' %}" class="addlink">
+      {% trans 'Block manager' %}
+    </a>
+  </li>
+  {{ block.super }}
+{% endblock %}

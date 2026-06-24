@@ -1,0 +1,66 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:sec_audit_enforcement_permanentblock_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {% trans 'Block manager' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p>{% trans "Block or unblock any subject. Choose a scope, enter the value, and optionally set a TTL in seconds (leave blank for a permanent block)." %}</p>
+
+  <form action="{% url 'admin:sec_audit_enforcement_permanentblock_manage' %}" method="post">
+    {% csrf_token %}
+    <fieldset class="module aligned">
+      {{ form.as_div }}
+    </fieldset>
+    <div class="submit-row">
+      <input type="submit" name="block" value="{% trans 'Block' %}" class="default">
+      <input type="submit" name="unblock" value="{% trans 'Unblock' %}">
+    </div>
+  </form>
+
+  <h2>{% trans 'Active blocks' %}</h2>
+  {% if active_blocks %}
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans 'Scope' %}</th>
+        <th>{% trans 'Value' %}</th>
+        <th>{% trans 'Reason' %}</th>
+        <th>{% trans 'Rule' %}</th>
+        <th>{% trans 'Expires' %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in active_blocks %}
+      <tr>
+        <td>{{ entry.scope.scope_type }}</td>
+        <td>{{ entry.scope.scope_value }}</td>
+        <td>{{ entry.reason|default:'—' }}</td>
+        <td>{{ entry.rule_name|default:'—' }}</td>
+        <td>{{ entry.expires_at|default:'permanent' }}</td>
+        <td>
+          <form action="{% url 'admin:sec_audit_enforcement_permanentblock_manage' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="scope_type" value="{{ entry.scope.scope_type }}">
+            <input type="hidden" name="scope_value" value="{{ entry.scope.scope_value }}">
+            <input type="submit" name="unblock" value="{% trans 'Unblock' %}">
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="help">{% trans "Only durable (permanent) blocks are listed; temporary (Redis-only) blocks auto-expire and may not appear here on a tiered deployment." %}</p>
+  {% else %}
+  <p>{% trans 'No active blocks.' %}</p>
+  {% endif %}
+</div>
+{% endblock %}
