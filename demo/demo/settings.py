@@ -19,10 +19,13 @@ INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.admin',
     'django.contrib.staticfiles',
     'auditlog',
     'rest_framework',
     'sec_audit.django',
+    'sec_audit.django_enforcement',
     'fintech',
 ]
 
@@ -31,7 +34,11 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.common.CommonMiddleware',
+    # Above AuditMiddleware: the ingress block check short-circuits before audit
+    # work (system check sec_audit_enforcement.E002).
+    'sec_audit.django_enforcement.middleware.EnforcementMiddleware',
     'sec_audit.django.middleware.AuditMiddleware',
 ]
 
@@ -47,6 +54,7 @@ TEMPLATES = [
             'context_processors': [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
             ],
         },
     }
@@ -139,6 +147,16 @@ SEC_AUDIT = {
         'drf_enabled': True,
         'model_events_enabled': True,
     },
+}
+
+# Enforcement: enabled with the per-process in-memory store (no Redis in the
+# demo — fine for a single-process dev server; `manage.py check` warns W004).
+# The PermanentBlock admin (create / revoke / list, under /admin/) is registered
+# by the enforcement app. Without the Redis+Postgres tier, blocks live in memory
+# and the admin persists its own durable PermanentBlock rows. See
+# packages/django-sec-audit-enforcement/docs/operations.md.
+SEC_AUDIT_ENFORCEMENT = {
+    'enabled': True,
 }
 
 LOGGING = {

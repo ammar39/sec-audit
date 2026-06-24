@@ -13,12 +13,15 @@ def seed_demo_data():
     maya.set_password('correct-demo-password')
     maya.save()
 
+    # Superuser so the demo can sign into /admin/ and exercise the enforcement
+    # PermanentBlock admin (create / revoke / list).
     analyst, _ = User.objects.get_or_create(
         username='risk-analyst',
         defaults={'email': 'risk@example.test', 'is_staff': True},
     )
     analyst.set_password('correct-demo-password')
     analyst.is_staff = True
+    analyst.is_superuser = True
     analyst.save()
 
     CustomerProfile.objects.update_or_create(

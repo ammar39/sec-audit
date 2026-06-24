@@ -37,6 +37,23 @@
                     <li><a href="/demo/generate-events/">GET /demo/generate-events/</a> &mdash; generate synthetic traffic</li>
                 </ul>
             </div>
+
+            <div class="panel">
+                <div class="section-head">
+                    <h2>Enforcement admin</h2>
+                </div>
+                <p>
+                    Manage blocks from the Django admin. Sign in as
+                    <code>risk-analyst</code> / <code>correct-demo-password</code>
+                    (run <code>manage.py seed_fintech_demo</code> first).
+                </p>
+                <ul>
+                    <li><a href="/admin/sec_audit_enforcement/permanentblock/manage/">Block manager</a> &mdash; block/unblock any subject with a scope + optional TTL</li>
+                    <li><a href="/admin/sec_audit_enforcement/permanentblock/">Permanent blocks</a> &mdash; browse / revoke the durable block records</li>
+                    <li><a href="/admin/auth/user/">Users</a> &mdash; "Block selected" / "Unblock selected" actions on the user list</li>
+                    <li><a href="/admin/">Django admin</a> &mdash; full admin index</li>
+                </ul>
+            </div>
         </section>
     </main>
 </body>
