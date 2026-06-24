@@ -73,6 +73,23 @@ class Rule:
     def evaluate(self, event: RuleEvent, ctx: RuleContext) -> RuleMatch | None:
         raise NotImplementedError
 
+    def history_attributes(
+        self, event: RuleEvent, ctx: RuleContext
+    ) -> Mapping[str, object] | None:
+        """Attributes this rule wants persisted alongside the event in history.
+
+        Returned values are stored under this rule's own namespace
+        (``rule_attrs[<name>]``) in the per-event history summary, so later events
+        in the same scope window can read them back for correlation — including
+        derived data the system does not otherwise carry (e.g. an extracted
+        resource id or a computed fingerprint).
+
+        Must be a pure detector method: no side effects. The engine owns the write
+        and coerces the returned mapping for serialization, but does NOT scrub it —
+        the rule is trusted to choose what it persists. Default contributes nothing.
+        """
+        return None
+
 
 class ScopedHistoryReader:
     def __init__(

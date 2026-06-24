@@ -12,6 +12,7 @@ from sec_audit.rules.builtins import (
     RepeatedClientErrorRule,
     RepeatedRouteRule,
     RequestBodyThresholdRule,
+    ResourceEnumerationRule,
     SensitiveFieldChangeRule,
     SuspiciousProxyHeaderRule,
 )
@@ -32,6 +33,7 @@ __all__ = [
     'RepeatedClientErrorRule',
     'RepeatedRouteRule',
     'RequestBodyThresholdRule',
+    'ResourceEnumerationRule',
     'Rule',
     'RuleContext',
     'RuleEngine',

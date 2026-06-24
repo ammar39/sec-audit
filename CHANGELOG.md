@@ -11,6 +11,14 @@ breaking changes may land in minor releases).
 ## [Unreleased]
 
 ### Added
+- **Rule-contributed history attributes** for `sec-audit-rules`: a `Rule` can override the
+  new `history_attributes(event, ctx)` hook to persist its own derived data (e.g. an extracted
+  resource id) under its namespace (`rule_attrs[<name>]`) in the per-event history summary, so
+  later events in the same scope window can read it back for correlation. Values are coerced
+  with `json_safe` but not scrubbed (rule-authored, trusted). Ships the
+  `resource_enumeration` built-in (alert-only) which uses it to flag one source IP touching
+  many distinct resources under a single route template. History summaries are internal
+  correlation state and not part of the emitted OTel schema.
 - **Custom enforcement rules** for `django-sec-audit-enforcement`: register your own
   `sec_audit.rules.Rule` subclasses via the new `SEC_AUDIT_ENFORCEMENT['rules']` setting
   (dotted-path strings or `Rule` instances), appended to the built-in defaults. Validated

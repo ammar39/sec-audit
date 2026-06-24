@@ -1,9 +1,11 @@
 import concurrent.futures
+import datetime as dt
 
 import pytest
 
 from sec_audit.rules import (
     ContextRequirements,
+    ResourceEnumerationRule,
     Rule,
     RuleContext,
     RuleEngine,
@@ -401,3 +403,140 @@ def test_context_requirements_sets_are_immutable():
 
     with pytest.raises(AttributeError):
         context.event_types.add('evil')
+
+
+class _TaggerRule(Rule):
+    name = 'tagger'
+    event_types = {'x'}
+
+    def __init__(self, attrs):
+        self._attrs = attrs
+
+    def evaluate(self, event, ctx):
+        return None
+
+    def history_attributes(self, event, ctx):
+        return self._attrs
+
+
+def test_history_attributes_persisted_under_rule_namespace():
+    history = MemoryEventHistoryStore()
+    engine = RuleEngine(
+        [_TaggerRule({'resource_key': 'abc'})],
+        counters=MemoryCounterStore(),
+        history=history,
+        clock=lambda: 5.0,
+    )
+
+    engine.evaluate({'event_type': 'x', 'srcip': '10.0.0.1'})
+
+    row = history.query(scope_key='ip:10.0.0.1', event_types=None, since=0, limit=10)[0]
+    assert row['rule_attrs']['tagger']['resource_key'] == 'abc'
+
+
+def test_history_attributes_not_scrubbed_but_json_coerced():
+    history = MemoryEventHistoryStore()
+    engine = RuleEngine(
+        [_TaggerRule({'access_token': 'keep-me', 'when': dt.datetime(2026, 1, 1, 12)})],
+        counters=MemoryCounterStore(),
+        history=history,
+        clock=lambda: 5.0,
+    )
+
+    engine.evaluate({'event_type': 'x', 'srcip': '10.0.0.1'})
+
+    attrs = history.query(scope_key='ip:10.0.0.1', event_types=None, since=0, limit=10)[
+        0
+    ]['rule_attrs']['tagger']
+    # Rule-authored: the 'token'-like key is NOT redacted (unlike scrubbed system fields).
+    assert attrs['access_token'] == 'keep-me'
+    # Non-JSON-native value is coerced for serialization, not crashed on.
+    assert attrs['when'] == '2026-01-01T12:00:00'
+
+
+def test_failing_history_attributes_does_not_break_match_or_append():
+    class FlakyRule(Rule):
+        name = 'flaky'
+        event_types = {'x'}
+
+        def evaluate(self, event, ctx):
+            return RuleMatch(self.name, 1, ctx.now, 'ok')
+
+        def history_attributes(self, event, ctx):
+            raise RuntimeError('boom')
+
+    history = MemoryEventHistoryStore()
+    engine = RuleEngine(
+        [FlakyRule()],
+        counters=MemoryCounterStore(),
+        history=history,
+        clock=lambda: 5.0,
+    )
+
+    matches = engine.evaluate({'event_type': 'x', 'srcip': '10.0.0.1'})
+
+    assert matches[0].rule_name == 'flaky'  # match survived the failing contribution
+    rows = history.query(scope_key='ip:10.0.0.1', event_types=None, since=0, limit=10)
+    assert rows  # history still appended
+    assert 'rule_attrs' not in rows[0]
+
+
+def _enumeration_engine(rule):
+    return RuleEngine(
+        [rule],
+        counters=MemoryCounterStore(),
+        history=MemoryEventHistoryStore(),
+        clock=_Clock(100.0),
+    )
+
+
+class _Clock:
+    def __init__(self, start):
+        self._t = start
+
+    def __call__(self):
+        self._t += 1.0
+        return self._t
+
+
+def test_resource_enumeration_fires_on_distinct_paths_under_one_route():
+    rule = ResourceEnumerationRule(threshold=3, window_seconds=300)
+    engine = _enumeration_engine(rule)
+
+    def hit(path):
+        return engine.evaluate(
+            {
+                'event_type': 'http.response.client_error',
+                'srcip': '10.0.0.9',
+                'route_pattern': '/admin/users/<id>/',
+                'url.path': path,
+            }
+        )
+
+    assert hit('/admin/users/1/') == []
+    assert hit('/admin/users/2/') == []
+    matches = hit('/admin/users/3/')
+
+    assert matches and matches[0].rule_name == 'resource_enumeration'
+    assert matches[0].metadata['distinct_paths'] == 3
+    assert matches[0].metadata['route'] == '/admin/users/<id>/'
+
+
+def test_resource_enumeration_silent_across_different_routes():
+    rule = ResourceEnumerationRule(threshold=3, window_seconds=300)
+    engine = _enumeration_engine(rule)
+
+    def hit(route, path):
+        return engine.evaluate(
+            {
+                'event_type': 'http.response.success',
+                'srcip': '10.0.0.9',
+                'route_pattern': route,
+                'url.path': path,
+            }
+        )
+
+    hit('/a/<id>/', '/a/1/')
+    hit('/b/<id>/', '/b/1/')
+    # A third distinct route — each template has only one concrete path, no burst.
+    assert hit('/c/<id>/', '/c/1/') == []

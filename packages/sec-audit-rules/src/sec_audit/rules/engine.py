@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 from sec_audit.core.clock import utc_timestamp
+from sec_audit.core.json import json_safe
 from sec_audit.rules.base import (
     ContextRequirements,
     Rule,
@@ -37,6 +38,9 @@ class _EvaluationContext:
     now: float
     summary: Mapping[str, object]
     scope_keys: Sequence[ScopeKey]
+    # Rule-contributed history attributes, keyed by rule name. Populated as a
+    # side effect during _run_rules and merged into the summary before append.
+    rule_attrs: dict[str, Mapping[str, object]] = field(default_factory=dict)
 
 
 class RuleEngine:
@@ -96,6 +100,7 @@ class RuleEngine:
             return []
         matches = self._run_rules(ctx, enforcement_only)
         self._persist_matches(matches)
+        self._merge_history_attributes(ctx)
         self._append_history(ctx.summary, ctx.scope_keys, recorded_at=ctx.now)
         return matches
 
@@ -154,7 +159,42 @@ class RuleEngine:
             if enforcement_only and not self.fail_open:
                 raise
             return None
+        self._collect_history_attributes(rule, rule_ctx, ctx, enforcement_only)
         return self._validate_match(rule, match)
+
+    def _collect_history_attributes(
+        self,
+        rule: Rule,
+        rule_ctx: RuleContext,
+        ctx: _EvaluationContext,
+        enforcement_only: bool,
+    ) -> None:
+        # Isolated from evaluate(): a failing/invalid contribution must not drop
+        # the match or block the history append. Stored on the shared ctx and
+        # merged into the summary later (see _merge_history_attributes).
+        if not rule.name:
+            return
+        try:
+            attrs = rule.history_attributes(ctx.rule_event, rule_ctx)
+        except Exception:
+            logger.debug(
+                'Audit rule history_attributes failed: %s',
+                getattr(rule, 'name', rule),
+                exc_info=True,
+            )
+            if enforcement_only and not self.fail_open:
+                raise
+            return
+        if attrs is None:
+            return
+        if not isinstance(attrs, Mapping):
+            logger.debug(
+                'Audit rule %r history_attributes returned %r; expected Mapping or None.',
+                getattr(rule, 'name', rule),
+                type(attrs).__name__,
+            )
+            return
+        ctx.rule_attrs[rule.name] = attrs
 
     def _build_context(self, rule: Rule, ctx: _EvaluationContext) -> RuleContext:
         return RuleContext(
@@ -205,6 +245,20 @@ class RuleEngine:
         context = getattr(rule, 'context', None)
         if context is not None and not isinstance(context, ContextRequirements):
             raise TypeError(f'Rule {rule.name!r} has invalid context requirements.')
+
+    def _merge_history_attributes(self, ctx: _EvaluationContext) -> None:
+        if not ctx.rule_attrs:
+            return
+        # Rule-authored attributes are trusted: coerce for serialization safety
+        # (the Redis store JSON-encodes summaries) but do NOT scrub — redaction
+        # would corrupt the values the rule deliberately chose to persist.
+        safe_attrs: dict[str, object] = {}
+        for name, attrs in ctx.rule_attrs.items():
+            safe = json_safe(dict(attrs))
+            if isinstance(safe, Mapping) and safe:
+                safe_attrs[name] = safe
+        if safe_attrs:
+            ctx.summary['rule_attrs'] = safe_attrs
 
     def _append_history(self, summary, scope_keys, *, recorded_at: float) -> None:
         if self.history is None or not scope_keys:
