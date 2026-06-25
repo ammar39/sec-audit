@@ -23,7 +23,6 @@ from sec_audit.django.runtime import (
     register_rule_event_consumer,
     unregister_rule_event_consumer,
 )
-from sec_audit.enforcement.policies import SeverityEnforcementPolicy
 from sec_audit.rules.base import Rule
 from sec_audit.rules.builtins import (
     BruteForceLoginRule,
@@ -72,7 +71,6 @@ class DjangoEnforcementRuntime:
     block_store: object
     enforcer: Enforcer
     emitter: EnforcementEmitter
-    policy: SeverityEnforcementPolicy
     schema_version: str
 
     def handle_event(self, event) -> None:
@@ -175,11 +173,6 @@ def _build_runtime(config: DjangoEnforcementConfig) -> 'DjangoEnforcementRuntime
         result_sinks=(enforcer,) if config.apply_via_sink else (),
         fail_open=config.fail_open,
     )
-    policy = SeverityEnforcementPolicy(
-        block_severity=config.enforcement.enforcement_block_severity,
-        status_code=config.status_code,
-        message=config.message,
-    )
     return DjangoEnforcementRuntime(
         config=config,
         scope_registry=registry,
@@ -187,7 +180,6 @@ def _build_runtime(config: DjangoEnforcementConfig) -> 'DjangoEnforcementRuntime
         block_store=block_store,
         enforcer=enforcer,
         emitter=emitter,
-        policy=policy,
         schema_version=schema_version,
     )
 

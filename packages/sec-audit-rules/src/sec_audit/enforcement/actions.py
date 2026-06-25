@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Mapping
 
-from sec_audit.enforcement.policies import EnforcementDecision
 from sec_audit.rules.base import RuleMatch
+
+logger = logging.getLogger('sec_audit.rules')
 
 TEMPORARY_ACTIONS = {'temp_block'}
 PERSISTENT_ACTIONS = {'persist_block'}
 BLOCKING_ACTIONS = {'block', 'temp_block', 'persist_block'}
 ALERT_SEVERITY = 4
 DEFAULT_BLOCK_SCOPES = ('ip',)
+# A bare persist_block (permanent) never defaults to ip — a permanent ip ban
+# behind shared egress (NAT, mobile carrier) would lock out many users.
+PERSIST_DEFAULT_SCOPES = ('user', 'session')
 
 
 @dataclass(frozen=True)
@@ -59,7 +64,6 @@ def resolve_rule_action(
     configured_actions: Mapping[str, object],
     block_rules: Mapping[str, int],
     default_ttl: int | None,
-    policy_decision: EnforcementDecision | None = None,
     default_action: str = 'observe',
 ) -> RuleAction:
     configured = configured_actions.get(match.rule_name)
@@ -67,16 +71,28 @@ def resolve_rule_action(
         return _configured_rule_action(configured)
     if match.rule_name in block_rules:
         return RuleAction(action='temp_block', ttl=block_rules[match.rule_name])
+    if match.decision == 'persist_block':
+        # A bare persist_block (no configured rule_actions entry) would inherit
+        # DEFAULT_BLOCK_SCOPES=('ip',) and produce a permanent IP ban. Default it
+        # to user/session (never ip); an explicit rule_actions scopes entry still
+        # wins (it resolves via configured_actions above).
+        logger.warning(
+            'Rule %r resolved persist_block with no configured scopes; '
+            'defaulting to %s (never ip) for shared-egress safety. Set '
+            'rule_actions[%r].scopes to override.',
+            match.rule_name,
+            PERSIST_DEFAULT_SCOPES,
+            match.rule_name,
+        )
+        return RuleAction(
+            action='persist_block',
+            ttl=_match_block_ttl(match, default_ttl),
+            scopes=PERSIST_DEFAULT_SCOPES,
+        )
     if match.decision in BLOCKING_ACTIONS or match.decision in {'alert', 'observe'}:
         return RuleAction(
             action=str(match.decision),
             ttl=_match_block_ttl(match, default_ttl),
-        )
-    if policy_decision is not None and not policy_decision.allowed:
-        return RuleAction(
-            action='block',
-            status_code=policy_decision.status_code,
-            message=policy_decision.message,
         )
     if default_action == 'alert':
         return RuleAction(action='alert')

@@ -55,7 +55,6 @@ class Enforcer:
             configured_actions=self.rule_actions,
             block_rules=self.block_rules,
             default_ttl=self.default_ttl,
-            policy_decision=None,
             default_action=self.default_action,
         )
 
