@@ -203,6 +203,11 @@ no manual step needed. Permanent bans are cached with `permanent_cache_ttl`
   rules (`alert` action, no block) surface here; this is how detect-and-surface
   detectors stay observable without blocking.
 
+To page a responder directly (no Loki ruler / Alertmanager required), connect a
+receiver to the `enforcement_event` signal — see [Enforcement events → Subscribing
+to enforcement events](events.md#subscribing-to-enforcement-events-custom-notifications).
+A dashboard nobody is watching detects nothing; the signal is the route to on-call.
+
 These are prebuilt. The `sec-audit-logging` Grafana dashboard has an
 **Enforcement** row (requests blocked, blocks applied, evaluation failures,
 alerts, blocks by rule/scope) and matching LogQL recipes in `loki/queries.md`; the

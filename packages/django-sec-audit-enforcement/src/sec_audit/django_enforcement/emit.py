@@ -16,6 +16,10 @@ from typing import Callable
 
 from sec_audit.core.events import AuditEvent
 
+from sec_audit.django_enforcement.signals import enforcement_event
+
+logger = logging.getLogger('sec_audit.enforcement')
+
 ALERT = 'audit.enforcement.alert'
 BLOCKED = 'audit.enforcement.blocked'
 BLOCK_APPLIED = 'audit.enforcement.block_applied'
@@ -119,4 +123,16 @@ class EnforcementEmitter:
 
     def emit(self, built) -> None:
         event, level = built
-        self._record(event, level)
+        self._record(event, level)  # durable trail wins, always
+        # Extension point — fire AFTER logging. send_robust never raises and is a
+        # near-no-op when no receiver is connected, so this is safe to always call.
+        for receiver, response in enforcement_event.send_robust(
+            sender=EnforcementEmitter,
+            event=event,
+            event_type=event.event_type,
+            level=level,
+        ):
+            if isinstance(response, Exception):
+                logger.warning(
+                    'enforcement_event receiver %r failed', receiver, exc_info=response
+                )

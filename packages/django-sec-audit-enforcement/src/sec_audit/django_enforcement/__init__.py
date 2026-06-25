@@ -12,6 +12,10 @@ from sec_audit.django_enforcement.api import (
     unblock_subject,
     unblock_user,
 )
+from sec_audit.django_enforcement.signals import (
+    enforcement_event,
+    on_enforcement_event,
+)
 
 __all__ = [
     'IP_SCOPE',
@@ -20,10 +24,12 @@ __all__ = [
     'USER_SCOPE',
     'block_subject',
     'block_user',
+    'enforcement_event',
     'is_blocked',
     'is_user_blocked',
     'list_active_blocks',
     'list_blocked_users',
+    'on_enforcement_event',
     'unblock_subject',
     'unblock_user',
 ]

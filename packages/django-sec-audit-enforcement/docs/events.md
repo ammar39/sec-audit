@@ -106,3 +106,70 @@ checklist](operations.md#monitoring-checklist).
 
 There is **no feedback loop**: emitted `audit.enforcement.*` events are on the
 rule engine's skip-list, so they are never re-evaluated.
+
+## Subscribing to enforcement events (custom notifications)
+
+A SIEM dashboard detects nothing if no one is paged. To route enforcement events
+to your own notifier (Slack, PagerDuty, email, a task queue) **without** standing up
+Loki ruler rules + Alertmanager, connect a receiver to the `enforcement_event`
+Django signal. The package only dispatches — it never makes the outbound call, so
+delivery (and the choice to do it inline vs. hand off to a queue) is entirely yours.
+
+The signal fires **once per emitted event**, for all five event types, **after** the
+event has been logged. Connect a receiver in your `AppConfig.ready()`:
+
+```python
+# yourapp/apps.py
+from django.apps import AppConfig
+from sec_audit.django_enforcement import on_enforcement_event
+
+
+def _notify(sender, *, event_type, event, level, **kwargs):
+    # Hand off — DON'T block the request thread on a network call.
+    notify_task.delay(event_type, dict(event.attributes))
+
+
+class YourAppConfig(AppConfig):
+    name = 'yourapp'
+
+    def ready(self):
+        on_enforcement_event(
+            _notify,
+            events={'audit.enforcement.alert', 'audit.enforcement.evaluation_failed'},
+        )
+```
+
+The raw Django `@receiver` pattern works too (branch on `event_type` yourself):
+
+```python
+from django.dispatch import receiver
+from sec_audit.django_enforcement import enforcement_event
+
+
+@receiver(enforcement_event)
+def page_oncall(sender, *, event_type, event, level, **kwargs):
+    if event_type == 'audit.enforcement.evaluation_failed':
+        notify_task.delay(event_type, dict(event.attributes))
+```
+
+Receiver signature: `(sender, *, event, event_type, level, **kwargs)` — `event` is the
+immutable `AuditEvent`, `event_type` is the convenience string (e.g.
+`'audit.enforcement.alert'`), `level` is the stdlib logging level.
+
+**Four guarantees / one caveat:**
+
+- **Isolated (fail-open).** Receivers run via `send_robust`: a receiver that raises is
+  caught and logged at WARNING — it never breaks enforcement, the response, or other
+  receivers.
+- **Logged first.** The signal fires *after* the durable JSONL write, so a slow or
+  broken receiver can never suppress the audit trail.
+- **Already-safe payload.** `event.attributes` is read-only and already scrubbed +
+  size-bounded by the emit pipeline (`evaluation_failed` is class-name-only). Treat
+  `event` as immutable.
+- **Sink-independent.** The signal fires even with no Loki/SIEM sink attached, so this
+  is a self-contained route-to-human path.
+- **Caveat — you own latency, and don't re-enter.** Receivers run **synchronously** on
+  the emit path (post-response egress / ingress block check), so keep them fast and
+  push network I/O to a queue (Celery/thread). And do **not** perform enforcement
+  actions from a receiver (e.g. `block_user`, which emits `block_applied`) — that
+  causes re-entrant dispatch.
