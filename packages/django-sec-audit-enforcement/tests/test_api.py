@@ -83,3 +83,19 @@ def test_list_active_blocks_filters_by_scope_type(captured):
     assert users == {'1'}
     both = {e.scope.scope_type for e in list_active_blocks()}
     assert both == {'user', 'session'}
+
+
+def test_permanent_ip_block_warns(captured, caplog):
+    """A permanent ip ban is allowed as an override but must surface a warning."""
+    with caplog.at_level('WARNING', logger='sec_audit.enforcement'):
+        entry = block_subject('ip', '203.0.113.9')  # ttl=None -> permanent
+    assert is_blocked('ip', '203.0.113.9') is not None  # still applied
+    assert entry.scope.scope_value == '203.0.113.9'
+    assert any('Permanent IP block' in r.getMessage() for r in caplog.records)
+
+
+def test_no_warning_for_temp_ip_or_permanent_user(captured, caplog):
+    with caplog.at_level('WARNING', logger='sec_audit.enforcement'):
+        block_subject('ip', '203.0.113.9', ttl=600)  # temp ip — fine
+        block_user(7)  # permanent user — fine
+    assert not any('Permanent IP block' in r.getMessage() for r in caplog.records)
