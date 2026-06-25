@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sec-audit-logging"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "Framework-free structured audit logging: OTel JSONL emission, scrubbing, formatters, file handlers, and Loki examples"
 readme = "README.md"
 license = "MIT"

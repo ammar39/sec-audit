@@ -1,8 +1,9 @@
 # Changelog
 
-All notable changes to the `sec-audit` distributions are documented here. The four packages
-(`sec-audit`, `sec-audit-logging`, `sec-audit-rules`, `django-sec-audit`) are versioned and
-released together.
+All notable changes to the `sec-audit` distributions are documented here. Packages are
+versioned and released **independently** (the original four-in-lockstep model has been
+retired now that the five distributions have diverged); each release section below lists the
+per-package versions it covers.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (pre-1.0:
@@ -10,7 +11,21 @@ breaking changes may land in minor releases).
 
 ## [Unreleased]
 
+## [2026-06-25]
+
+Released: **`sec-audit-logging` 0.1.0a2**, **`sec-audit-rules` 0.1.0a3**,
+**`django-sec-audit` 0.1.0a5**, **`django-sec-audit-enforcement` 0.1.0a3**
+(`sec-audit` unchanged at `0.1.0a1`).
+
 ### Added
+- **`enforcement_event` Django signal** for `django-sec-audit-enforcement` (`0.1.0a3`): a
+  public extension point fired once per emitted `audit.enforcement.*` event, *after* it has
+  been logged, so deployments can route alerts to their own notifier
+  (Slack/PagerDuty/email/queue) without the package making the outbound call itself. Receivers
+  run via `send_robust` (fail-open: a raising receiver is isolated and never affects
+  enforcement or the response). Connect with the `on_enforcement_event(handler, events=...)`
+  helper — optionally filtered to specific event-type strings, and wired with `weak=False` so a
+  handler defined in `AppConfig.ready()` is not garbage-collected.
 - **Always-on alert detection event** for `django-sec-audit-enforcement`
   (`0.1.0a2`): a rule that resolves to the `alert` action (detect-and-surface, no
   block) now emits a lightweight per-match `audit.enforcement.alert` event
@@ -39,6 +54,16 @@ breaking changes may land in minor releases).
 - Package metadata for PyPI: `authors`, `keywords`, and `[project.urls]` across all four
   distributions; per-package `README.md` (long description) and bundled `LICENSE`.
 
+### Changed
+- **Decoupled rule/enforcement dispatch from log emission for non-error responses**
+  (`sec-audit-rules` `0.1.0a3`, `django-sec-audit` `0.1.0a5`). Successful and redirect
+  responses now reach registered rule consumers even when their logging is suppressed
+  (`log_ok_responses=False` or sampled out): `Runtime.record(..., emit=False)` skips the log
+  write but still feeds the event to consumers, and the middleware routes non-error responses
+  through a new `_record_non_error` path gated on `has_rule_event_consumers()` so the
+  (expensive) event is still built only when something will consume it. Previously, turning off
+  success logging also blinded enforcement/detection rules to good traffic.
+
 ## [0.1.0a1] - 2026-06-22
 
 Initial alpha release of the four coordinated distributions.
@@ -54,5 +79,6 @@ Initial alpha release of the four coordinated distributions.
 - **django-sec-audit** — Django integration: HTTP request/response middleware, auth-signal
   logging, django-auditlog model forwarding (`[model]`), and DRF metadata capture (`[drf]`).
 
-[Unreleased]: https://github.com/ammar39/sec-audit/compare/v0.1.0a1...HEAD
+[Unreleased]: https://github.com/ammar39/sec-audit/compare/sec-audit-rules-v0.1.0a3...HEAD
+[2026-06-25]: https://github.com/ammar39/sec-audit/compare/v0.1.0a1...sec-audit-rules-v0.1.0a3
 [0.1.0a1]: https://github.com/ammar39/sec-audit/releases/tag/v0.1.0a1

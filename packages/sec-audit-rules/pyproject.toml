@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sec-audit-rules"
-version = "0.1.0a2"
+version = "0.1.0a3"
 description = "Framework-free audit rules engine and enforcement policies"
 readme = "README.md"
 license = "MIT"

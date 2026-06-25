@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "django-sec-audit-enforcement"
-version = "0.1.0a2"
+version = "0.1.0a3"
 description = "Redis + Postgres enforcement layer for django-sec-audit: temp/permanent blocks, ingress check, OTel enforcement events"
 readme = "README.md"
 license = "MIT"
@@ -12,8 +12,8 @@ authors = [{ name = "Ammar", email = "ammarwaleed@proton.me" }]
 requires-python = ">=3.10"
 keywords = ["django", "security", "audit", "enforcement", "rate-limit", "redis", "siem"]
 dependencies = [
-  "sec-audit-rules[redis]>=0.1.0a2,<0.2",
-  "django-sec-audit>=0.1.0a4,<0.2",
+  "sec-audit-rules[redis]>=0.1.0a3,<0.2",
+  "django-sec-audit>=0.1.0a5,<0.2",
   "django>=5.2,<6.1",
 ]
 classifiers = [
