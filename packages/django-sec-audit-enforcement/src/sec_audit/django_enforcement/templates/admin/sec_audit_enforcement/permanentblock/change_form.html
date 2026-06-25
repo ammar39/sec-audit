@@ -1,0 +1,54 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+  /* Light polish for the PermanentBlock add/change form (this template renders
+     only for this model). Colours come from Django admin's theme variables, so
+     it tracks the active light/dark theme. */
+  .sa-callout {
+    display: flex; gap: 10px; align-items: flex-start;
+    max-width: 760px; margin: 0 0 22px; padding: 13px 16px;
+    border: 1px solid var(--hairline-color, var(--border-color));
+    border-radius: 9px; background: var(--darkened-bg);
+    color: var(--body-fg); font-size: 13px; line-height: 1.5;
+  }
+  .sa-callout .sa-callout-ico { font-size: 16px; flex: none; }
+  .sa-callout a { font-weight: 600; }
+
+  #content-main fieldset.module {
+    border: 1px solid var(--hairline-color, var(--border-color));
+    border-radius: 10px; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
+  }
+  #content-main .form-row input[type=text],
+  #content-main .form-row input[type=number],
+  #content-main .form-row select {
+    box-sizing: border-box; min-width: 360px; max-width: 100%; height: 38px;
+    padding: 0 11px; font-size: 13px;
+    border: 1px solid var(--border-color); border-radius: 7px;
+    background: var(--body-bg); color: var(--body-fg);
+  }
+  #content-main .form-row input:focus,
+  #content-main .form-row select:focus {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(70, 130, 180, .25);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent);
+  }
+  .submit-row input { border-radius: 7px; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% if add %}
+  <div class="sa-callout">
+    <span class="sa-callout-ico">&#128161;</span>
+    <span>
+      {% trans "This creates a" %} <strong>{% trans "permanent" %}</strong>
+      {% trans "block. Need a temporary (TTL) block, or want to review and lift active blocks?" %}
+      <a href="{% url 'admin:sec_audit_enforcement_permanentblock_manage' %}">{% trans "Open the Block manager." %}</a>
+    </span>
+  </div>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}
