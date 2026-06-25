@@ -127,3 +127,26 @@ def test_persist_sink_path_emits_and_blocks_ip():
     enf.persist(_match())
     assert store.get_active(BlockScope('ip', '1.2.3.4')) is not None
     assert len(emitted) == 1
+
+
+def test_persist_sink_warns_on_unappliable_user_scope(caplog):
+    """The sink path has no user identity (RuleMatch carries none), so a
+    user-scoped action drops the user dimension — warn, apply what we can."""
+    store = MemoryBlockStore()
+
+    class _Emitter:
+        def emit(self, built):
+            pass
+
+    enf = _enforcer(
+        store,
+        rule_actions={'r': {'action': 'persist_block', 'scopes': ['user', 'session']}},
+        emitter=_Emitter(),
+    )
+    with caplog.at_level('WARNING', logger='sec_audit.enforcement'):
+        enf.persist(_match())  # session_id present, no user identity
+
+    # The session ban is applied; the user dimension cannot be (no user id).
+    scopes = {(e.scope.scope_type, e.scope.scope_value) for e in store.active_blocks()}
+    assert scopes == {('session', 'sess')}
+    assert any('user-scoped action' in r.getMessage() for r in caplog.records)

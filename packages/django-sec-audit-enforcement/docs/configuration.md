@@ -30,7 +30,7 @@ SEC_AUDIT_ENFORCEMENT = {
 | `fail_open` | bool | `True` | Global posture: on an unexpected enforcement error, proceed (allow) and emit a diagnostic event rather than crash the request. |
 | `fail_closed_paths` | list[regex] | `()` | Path patterns that **deny** (return the block response) if the block store is unreachable. Everything else fails open. See the blast-radius warning below. |
 | `eval_safe_on_ingress` | bool | `True` | Evaluate `safe_for_enforcement` rules **inline** (pre-response) on a synthetic pre-request event, so e.g. `login_throttle` can block before the view runs. |
-| `apply_via_sink` | bool | `False` | Apply blocks through the rule engine's result-sink (egress) instead of the consumer path. When `True`, ingress safe-rule application is skipped. |
+| `apply_via_sink` | bool | `False` | Apply blocks through the rule engine's result-sink (egress) instead of the consumer path. When `True`, ingress safe-rule application is skipped. **Caveat:** the sink path derives ban scopes from the match alone (`srcip`/`session_id`) — it has no user identity, so **user-scoped bans are not applied** and a warning is logged. Keep the default (`False`) if any rule action uses the `user` scope. |
 | `status_code` | int | `429` | Default HTTP status for a block response. |
 | `message` | str | `'Request blocked by audit enforcement policy'` | Default block response body. |
 | `block_severity` | int \| None | `None` | Severity gate for the `block` action: only matches at/above this severity escalate to a permanent ban; below it they degrade to a temp block. |
