@@ -32,9 +32,19 @@ class _AdminUser:
         return True
 
 
-def _request():
+class _ViewerUser:
+    """Staff with view access but NOT the change permission that gates revoke."""
+
+    def get_username(self):
+        return 'viewer'
+
+    def has_perm(self, perm, obj=None):
+        return perm != 'sec_audit_enforcement.change_permanentblock'
+
+
+def _request(user=None):
     request = RequestFactory().post('/admin/')
-    request.user = _AdminUser()
+    request.user = user or _AdminUser()
     request.session = {}
     request._messages = FallbackStorage(request)
     return request
@@ -90,6 +100,20 @@ def test_revoke_action_soft_revokes_and_emits(admin_and_events):
     assert [e for e, _ in events if e.event_type == BLOCK_REVOKED]
 
 
+def test_revoke_requires_change_permission(admin_and_events):
+    """A view-only staff user can't revoke (defeat) blocks: the revoke action is
+    gated on the real change permission, not merely on reaching the changelist."""
+    model_admin, _ = admin_and_events
+
+    viewer_request = _request(user=_ViewerUser())
+    assert model_admin.has_change_permission(viewer_request) is False
+    # permissions=['change'] removes the action for a user without change perm.
+    assert 'revoke_blocks' not in model_admin.get_actions(viewer_request)
+
+    # A user WITH change permission still gets the action.
+    assert 'revoke_blocks' in model_admin.get_actions(_request())
+
+
 def test_add_form_restricted_to_operator_fields(admin_and_events):
     model_admin, _ = admin_and_events
     assert model_admin.get_fields(_request(), obj=None) == (
@@ -126,7 +150,6 @@ def test_save_model_persists_row_with_memory_store():
             block_store=MemoryBlockStore(),
             enforcer=None,
             emitter=EnforcementEmitter(lambda event, level: None),
-            policy=None,
             schema_version='1.0',
         )
     )
