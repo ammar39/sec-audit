@@ -100,8 +100,13 @@ class RuleEngine:
             return []
         matches = self._run_rules(ctx, enforcement_only)
         self._persist_matches(matches)
-        self._merge_history_attributes(ctx)
-        self._append_history(ctx.summary, ctx.scope_keys, recorded_at=ctx.now)
+        if not enforcement_only:
+            # The ingress pre-request pass (enforcement_only=True) re-evaluates a
+            # synthetic event under the same scope keys as the real egress event;
+            # appending it would double-count the request in history and inflate
+            # correlation windows. Only the egress pass writes history.
+            self._merge_history_attributes(ctx)
+            self._append_history(ctx.summary, ctx.scope_keys, recorded_at=ctx.now)
         return matches
 
     def _is_internal_event(self, rule_event: RuleEvent) -> bool:
