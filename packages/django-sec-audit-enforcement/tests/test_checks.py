@@ -4,6 +4,7 @@ from sec_audit.django_enforcement import checks
 
 AUDIT = 'sec_audit.django.middleware.AuditMiddleware'
 ENF = 'sec_audit.django_enforcement.middleware.EnforcementMiddleware'
+SESSION = 'django.contrib.sessions.middleware.SessionMiddleware'
 
 
 @override_settings(SEC_AUDIT_ENFORCEMENT={'enabled': True}, MIDDLEWARE=[AUDIT])
@@ -36,3 +37,34 @@ def test_config_warnings_redis_and_fail_closed():
     ids = {w.id for w in warnings}
     assert 'sec_audit_enforcement.W004' in ids  # no redis_url
     assert 'sec_audit_enforcement.W005' in ids  # fail-closed blast radius
+
+
+# --- W007: session enforcement requires SessionMiddleware first -------------
+
+
+@override_settings(
+    SEC_AUDIT_ENFORCEMENT={'enabled': True},
+    SEC_AUDIT={'django': {'emit_session_id': True}},
+    MIDDLEWARE=[ENF, SESSION, AUDIT],
+)
+def test_session_order_warns_when_enforcement_before_session():
+    ids = {w.id for w in checks.check_session_enforcement_order(None)}
+    assert 'sec_audit_enforcement.W007' in ids
+
+
+@override_settings(
+    SEC_AUDIT_ENFORCEMENT={'enabled': True},
+    SEC_AUDIT={'django': {'emit_session_id': True}},
+    MIDDLEWARE=[SESSION, ENF, AUDIT],
+)
+def test_session_order_ok_when_session_first():
+    assert checks.check_session_enforcement_order(None) == []
+
+
+@override_settings(
+    SEC_AUDIT_ENFORCEMENT={'enabled': True},
+    SEC_AUDIT={'django': {'emit_session_id': False}},
+    MIDDLEWARE=[ENF, SESSION, AUDIT],
+)
+def test_session_order_skipped_when_emit_session_id_off():
+    assert checks.check_session_enforcement_order(None) == []

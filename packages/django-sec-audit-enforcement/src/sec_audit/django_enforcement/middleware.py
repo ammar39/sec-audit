@@ -50,8 +50,12 @@ class EnforcementMiddleware:
     def _ingress(self, runtime, request):
         config = runtime.config
         path = getattr(request, 'path', '') or ''
-        tpc = get_runtime().config.django.trusted_proxy_config
-        summary = ingress_summary(request, trusted_proxy_config=tpc)
+        django_cfg = get_runtime().config.django
+        summary = ingress_summary(
+            request,
+            trusted_proxy_config=django_cfg.trusted_proxy_config,
+            emit_session_id=django_cfg.emit_session_id,
+        )
         scopes = runtime.scope_registry.block_scopes(summary)
 
         try:

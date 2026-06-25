@@ -192,6 +192,19 @@ permanent blocks from Postgres into Redis, marks the cache warm, and answers —
 no manual step needed. Permanent bans are cached with `permanent_cache_ttl`
 (default 3600s) and re-warmed on miss, so they survive cache eviction too.
 
+## Session-scoped blocks require `emit_session_id`
+
+The ingress check keys the session dimension on the audit-session id that egress
+emits (`_sec_audit_session_id`), never the raw `request.session.session_key`. That
+id only exists when `SEC_AUDIT['django']['emit_session_id']` is `True` (off by
+default), so session-scoped permanent bans (e.g. the `sensitive_field_change`
+default, scoped `['user', 'session']`) only enforce when it is enabled; the `user`
+half always enforces. With it enabled, place `EnforcementMiddleware` **after**
+`SessionMiddleware` so `request.session` is loaded at ingress — the
+`sec_audit_enforcement.W007` check flags a wrong order. A session block created on
+one request becomes enforceable from the next request on that session (the id is
+minted on the first request's response), matching the egress-then-enforce model.
+
 ## Monitoring checklist
 
 - **Alert** on any `audit.enforcement.evaluation_failed` — the block store was

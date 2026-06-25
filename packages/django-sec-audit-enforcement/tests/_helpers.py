@@ -2,10 +2,25 @@
 
 from django.http import HttpResponse
 
+from sec_audit.django.logging.sessions import _AUDIT_SESSION_ID_KEY
+
 
 class FakeSession:
-    def __init__(self, key=''):
+    """Dict-like session double exposing the bits the audit/enforcement code reads."""
+
+    def __init__(self, key='', data=None):
         self.session_key = key
+        self._data = dict(data or {})
+        self.modified = False
+
+    def get(self, name, default=None):
+        return self._data.get(name, default)
+
+    def __getitem__(self, name):
+        return self._data[name]
+
+    def __setitem__(self, name, value):
+        self._data[name] = value
 
 
 class FakeUser:
@@ -23,6 +38,7 @@ class FakeRequest:
         remote_addr='203.0.113.7',
         xff=None,
         session_key='',
+        audit_session_id=None,
         user_pk=None,
     ):
         self.path = path
@@ -30,7 +46,10 @@ class FakeRequest:
         self.META = {'REMOTE_ADDR': remote_addr}
         if xff is not None:
             self.META['HTTP_X_FORWARDED_FOR'] = xff
-        self.session = FakeSession(session_key)
+        data = {}
+        if audit_session_id is not None:
+            data[_AUDIT_SESSION_ID_KEY] = audit_session_id
+        self.session = FakeSession(session_key, data)
         self.user = FakeUser(user_pk)
 
 

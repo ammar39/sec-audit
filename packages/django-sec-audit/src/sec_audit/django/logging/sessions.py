@@ -27,3 +27,17 @@ def get_audit_session_id(request, *, enabled: bool = True) -> str:
         # Ensure SessionMiddleware persists the new id on the response path.
         session.modified = True
     return str(value)
+
+
+def read_audit_session_id(request) -> str:
+    """Return the already-stored audit-session id, or '' if none.
+
+    Read-only counterpart to :func:`get_audit_session_id`: it never mints a new id
+    and never writes to the session (no ``session.modified``). The ingress
+    enforcement check uses this so a session block (keyed by the audit id egress
+    emits) is looked up under the same value — never ``session.session_key``.
+    """
+    session = getattr(request, 'session', None)
+    if session is None:
+        return ''
+    return str(session.get(_AUDIT_SESSION_ID_KEY) or '')

@@ -76,6 +76,11 @@ Temp blocks key on `ip`. **Permanent** (`persist_block`) bans key on
 (corporate NAT, a mobile carrier) locks out many unrelated users. This property
 is encoded in the defaults; preserve it when you override `rule_actions`.
 
+The `session` dimension only enforces when `SEC_AUDIT['django']['emit_session_id']`
+is `True` (off by default): both ingress and egress key it on the audit-session id,
+not the raw `session.session_key`. With it off, the `user` half still enforces but
+the `session` half is inert — see `operations.md`.
+
 ## `block_rules`
 
 Sets the temp-block TTL (seconds) per rule name. Without an entry, a temp block

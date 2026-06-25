@@ -18,7 +18,10 @@ from sec_audit.django.events import (
     build_audit_event,
     build_log_attributes,
 )
-from sec_audit.django.logging.sessions import get_audit_session_id
+from sec_audit.django.logging.sessions import (
+    get_audit_session_id,
+    read_audit_session_id,
+)
 from sec_audit.logging.formatters import JSONLLogFormatter
 
 RAW_SESSION_KEY = 'RAWKEYXYZ'
@@ -95,6 +98,28 @@ def test_disabled_returns_empty_and_writes_nothing():
 def test_no_session_returns_empty():
     request = SimpleNamespace(session=None)
     assert get_audit_session_id(request) == ''
+
+
+# --- read_audit_session_id: read-only ingress counterpart -------------------
+
+
+def test_read_returns_stored_value_without_writing():
+    session = _FakeSession()
+    session['_sec_audit_session_id'] = 'audit-1'
+    session.modified = False
+
+    assert read_audit_session_id(_Request(session)) == 'audit-1'
+    assert session.modified is False  # ingress must never mutate the session
+
+
+def test_read_absent_returns_empty_and_mints_nothing():
+    session = _FakeSession()
+    assert read_audit_session_id(_Request(session)) == ''
+    assert '_sec_audit_session_id' not in session
+
+
+def test_read_no_session_returns_empty():
+    assert read_audit_session_id(SimpleNamespace(session=None)) == ''
 
 
 # --- builder path emits session.id, never the raw credential ----------------
