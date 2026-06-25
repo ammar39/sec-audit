@@ -192,6 +192,20 @@ permanent blocks from Postgres into Redis, marks the cache warm, and answers —
 no manual step needed. Permanent bans are cached with `permanent_cache_ttl`
 (default 3600s) and re-warmed on miss, so they survive cache eviction too.
 
+## Redis eviction policy (`allkeys-*` / `volatile-*`)
+
+The warm sentinel carries the ban **membership set**, so an evicting policy never
+unbans an actor: non-banned traffic is still answered from the sentinel with no
+Postgres read, and a banned actor whose cached key was evicted is re-verified
+against Postgres on the spot. The cost of an evicting policy is the extra Postgres
+read per eviction, plus — if the active-ban list exceeds the sentinel embed cap
+(1000) — a per-request Postgres re-verify on requests whose scope type matches an
+active ban (size the database for it). The `sec_audit_enforcement.W006` system
+check warns at `manage.py check` time when it can read `maxmemory-policy` and finds
+an evicting policy. **Recommended:** run the block store under `noeviction`, or
+give it a dedicated Redis database/instance not subject to an `allkeys-*` /
+`volatile-*` policy.
+
 ## Session-scoped blocks require `emit_session_id`
 
 The ingress check keys the session dimension on the audit-session id that egress

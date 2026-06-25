@@ -68,3 +68,48 @@ def test_session_order_ok_when_session_first():
 )
 def test_session_order_skipped_when_emit_session_id_off():
     assert checks.check_session_enforcement_order(None) == []
+
+
+# --- W006: Redis eviction policy can drop cached block keys ------------------
+
+
+class _FakeRedis:
+    def __init__(self, policy=None, raises=False):
+        self._policy = policy
+        self._raises = raises
+
+    def config_get(self, _key):
+        if self._raises:
+            raise RuntimeError('CONFIG disabled')
+        return {'maxmemory-policy': self._policy}
+
+
+_W006 = {'enabled': True, 'redis_url': 'redis://localhost:6379/0'}
+
+
+@override_settings(SEC_AUDIT_ENFORCEMENT=_W006)
+def test_eviction_policy_warns_on_allkeys_lru(monkeypatch):
+    monkeypatch.setattr(
+        'redis.Redis.from_url', lambda *a, **k: _FakeRedis('allkeys-lru')
+    )
+    ids = {w.id for w in checks.check_redis_eviction_policy(None)}
+    assert 'sec_audit_enforcement.W006' in ids
+
+
+@override_settings(SEC_AUDIT_ENFORCEMENT=_W006)
+def test_eviction_policy_ok_on_noeviction(monkeypatch):
+    monkeypatch.setattr(
+        'redis.Redis.from_url', lambda *a, **k: _FakeRedis('noeviction')
+    )
+    assert checks.check_redis_eviction_policy(None) == []
+
+
+@override_settings(SEC_AUDIT_ENFORCEMENT=_W006)
+def test_eviction_policy_silent_when_config_disabled(monkeypatch):
+    monkeypatch.setattr('redis.Redis.from_url', lambda *a, **k: _FakeRedis(raises=True))
+    assert checks.check_redis_eviction_policy(None) == []  # no crash, no warning
+
+
+@override_settings(SEC_AUDIT_ENFORCEMENT={'enabled': True})
+def test_eviction_policy_skipped_without_redis_url():
+    assert checks.check_redis_eviction_policy(None) == []

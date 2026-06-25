@@ -9,6 +9,7 @@ unbanning an actor; and a heap of no-TTL keys under ``volatile-*`` can OOM).
 
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 from typing import Sequence
 
@@ -115,18 +116,43 @@ class RedisBlockStore:
             raise BlockStoreError('Redis block delete failed.') from exc
 
     # --- warm-sentinel helpers (used by TieredBlockStore) ---
+    #
+    # The warm key holds a JSON payload describing the active permanent bans
+    # (``TieredBlockStore`` owns its shape). This layer only serializes/reads it.
 
-    def is_warm(self) -> bool:
+    def read_warm(self) -> dict | None:
+        """Return the parsed warm payload, or ``None`` if absent (cold).
+
+        The payload is written only by ``TieredBlockStore`` (which owns its shape),
+        so a value that is not the JSON object we write means our own writer is
+        broken or a foreign process is using the key — raise rather than silently
+        degrade to a re-verify that would mask the bug.
+        """
         try:
-            return bool(self._client.exists(self._warm_key))
+            raw = self._client.get(self._warm_key)
         except RedisError as exc:
-            raise BlockStoreError('Redis warm check failed.') from exc
-
-    def mark_warm(self, ttl: int) -> None:
+            raise BlockStoreError('Redis warm read failed.') from exc
+        if raw is None:
+            return None
         try:
-            self._client.set(self._warm_key, '1', ex=int(ttl))
+            data = json.loads(_text(raw))
+        except (ValueError, TypeError) as exc:
+            raise BlockStoreError('Malformed warm sentinel (not JSON).') from exc
+        if not isinstance(data, dict):
+            raise BlockStoreError('Malformed warm sentinel (not an object).')
+        return data
+
+    def mark_warm(self, ttl: int, data: dict) -> None:
+        try:
+            self._client.set(self._warm_key, json.dumps(data), ex=int(ttl))
         except RedisError as exc:
             raise BlockStoreError('Redis warm mark failed.') from exc
+
+    def clear_warm(self) -> None:
+        try:
+            self._client.delete(self._warm_key)
+        except RedisError as exc:
+            raise BlockStoreError('Redis warm clear failed.') from exc
 
 
 def _text(value: object) -> str:

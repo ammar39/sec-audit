@@ -90,12 +90,23 @@ The store implementation is chosen from config at first use:
 | `redis_url`, `permanent_tier_enabled=True` (default) | `TieredBlockStore` (Redis + Postgres) | production |
 
 **Warm sentinel.** `TieredBlockStore.first_active()` must answer "not blocked"
-without hitting Postgres on every clean request. A `…:blocks:warm` Redis sentinel
-records that the cache is fully loaded: while it's present a Redis miss is
-authoritative (allow); if it's absent (cold start / post-flush) the store
-re-warms all active permanent blocks from Postgres, then answers. Redis never
-stores a no-TTL key — permanent blocks are cached with `permanent_cache_ttl`
-(default 3600s) and re-warmed on miss.
+without hitting Postgres on every clean request — the cache only ever holds keys
+for *actually-blocked* actors, so a normal request always misses, and that miss
+must stay O(1). A `…:blocks:warm` Redis sentinel carries the authoritative
+**membership set** of active permanent bans (`(scope_type, scope_value)` pairs):
+while it's present a Redis miss is answered from the sentinel itself, no Postgres.
+If it's absent (cold start / post-flush / sentinel evicted) the store re-warms all
+active permanent blocks from Postgres, then answers. This stays correct under an
+`allkeys-*` eviction policy: eviction can take an individual block key (the
+sentinel, read on every miss, stays hot), but membership lives in the sentinel, so
+a banned-but-evicted actor is still detected and its entry re-fetched from Postgres
+on the spot and re-cached. Non-banned traffic never touches Postgres. The sentinel
+is dropped (forcing a re-warm) whenever a permanent ban is created or revoked, so
+membership stays fresh. When the active-ban list exceeds the embed cap
+(`_WARM_EMBED_CAP`, 1000) the sentinel can't embed every pair and falls back to a
+count + scope-type summary; a warm miss whose scope type matches then re-verifies
+against Postgres. Redis never stores a no-TTL key — permanent blocks are cached
+with `permanent_cache_ttl` (default 3600s) and re-warmed on miss.
 
 ## Fail modes
 

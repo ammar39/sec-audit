@@ -19,6 +19,8 @@ ENFORCEMENT_MIDDLEWARE = 'sec_audit.django_enforcement.middleware.EnforcementMid
 AUDIT_MIDDLEWARE = 'sec_audit.django.middleware.AuditMiddleware'
 SESSION_MIDDLEWARE = 'django.contrib.sessions.middleware.SessionMiddleware'
 ENFORCEMENT_APP = 'sec_audit.django_enforcement'
+# Eviction policies that can silently drop cached permanent-block keys.
+_EVICTING_POLICY_PREFIXES = ('allkeys-', 'volatile-')
 
 
 def _config():
@@ -102,6 +104,49 @@ def check_enforcement_config(app_configs, **kwargs):
             )
         )
     return warnings
+
+
+@register(Tags.security)
+def check_redis_eviction_policy(app_configs, **kwargs):
+    """W006 — warn when Redis may evict cached permanent-block keys.
+
+    Best-effort and non-fatal: managed Redis (ElastiCache, Memorystore, Upstash)
+    often disables ``CONFIG``, and ``manage.py check`` must not fail or hang when
+    Redis is unreachable — so the whole probe is wrapped in a broad try/except.
+    Correctness is preserved by the store (the warm sentinel carries ban
+    membership), so this is purely an operator nudge to avoid the extra Postgres
+    reads an evicting policy forces.
+    """
+    config = _config()
+    if config is None or not config.enabled:
+        return []
+    if not (config.redis_url and config.permanent_tier_enabled):
+        return []
+    try:
+        import redis
+
+        client = redis.Redis.from_url(
+            config.redis_url, socket_connect_timeout=1, socket_timeout=1
+        )
+        policy = str(
+            (client.config_get('maxmemory-policy') or {}).get('maxmemory-policy', '')
+        ).lower()
+    except Exception:
+        return []
+    if not policy.startswith(_EVICTING_POLICY_PREFIXES):
+        return []
+    return [
+        Warning(
+            f"Redis maxmemory-policy is '{policy}': it can evict cached "
+            'permanent-block keys. Bans stay correct (the store re-verifies against '
+            'Postgres via the membership sentinel), but every eviction forces a '
+            'Postgres read, and a ban list larger than the embed cap degrades to a '
+            'per-request Postgres re-verify on matching scope types.',
+            hint="Use 'noeviction' for the block store, or give it a dedicated Redis "
+            'database/instance not subject to an allkeys-*/volatile-* policy.',
+            id='sec_audit_enforcement.W006',
+        )
+    ]
 
 
 @register(Tags.security)
