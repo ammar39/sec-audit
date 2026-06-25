@@ -11,6 +11,57 @@ breaking changes may land in minor releases).
 
 ## [Unreleased]
 
+Code-review follow-ups across `sec-audit-rules` and `django-sec-audit-enforcement`.
+
+### Security
+- **`django-sec-audit-enforcement`** — admin block **revocation now requires the
+  `change_permanentblock` permission**. `PermanentBlockAdmin.has_change_permission`
+  previously returned `True` unconditionally and the `revoke_blocks` action carried
+  no permission gate, so any staff user who could reach the changelist could revoke
+  (defeat) active blocks. The action is now gated with `permissions=['change']` and
+  the change view is gated on the real permission. View-only staff keep read access
+  but can no longer revoke. **Back-compat:** staff with view/add but not change lose
+  the revoke action and the change view.
+
+### Changed
+- **`sec-audit-rules`** — a bare `persist_block` decision (a custom rule returning
+  `decision='persist_block'` with no matching `rule_actions` entry) now defaults its
+  scopes to `('user', 'session')` instead of `('ip',)`, and logs a warning. This
+  prevents an accidental **permanent IP ban behind shared egress** (NAT, mobile
+  carrier). An explicit `rule_actions[...].scopes` entry still wins. **Back-compat:**
+  un-configured custom `persist_block` rules now ban user/session, not ip.
+- **`django-sec-audit-enforcement`** — `block_subject('ip', …, ttl=None)` (a permanent
+  IP ban via the manual API) now logs a warning about shared-egress lockout risk; the
+  block is still applied.
+- **`django-sec-audit-enforcement`** — `apply_via_sink=True` now logs a warning when a
+  resolved action requests the `user` scope, since the sink path has no user identity
+  and silently could not apply it. Documented next to the setting.
+- **`django-sec-audit-enforcement`** — the block-deny response is now served as
+  `text/plain` instead of the default `text/html`.
+
+### Fixed
+- **`django-sec-audit-enforcement`** — `PostgresBlockStore.block()` is now atomic
+  (`update_or_create` inside `transaction.atomic()`), closing a check-then-create race
+  where two concurrent re-bans of the same scope could raise a raw `IntegrityError`;
+  a genuinely-racing insert now surfaces as `BlockStoreError`.
+- **`sec-audit-rules`** — the synthetic ingress pre-request evaluation
+  (`enforcement_only=True`) no longer appends to the event history store, so a request
+  is counted **once** (egress) instead of twice; egress history-reading rules
+  (e.g. `resource_enumeration`) are no longer inflated.
+
+### Removed
+- **`sec-audit-rules` / `django-sec-audit-enforcement`** — removed the dead
+  `SeverityEnforcementPolicy` wiring: the `policy_decision` parameter of
+  `resolve_rule_action`, the `policy` field on `DjangoEnforcementRuntime`, and the
+  unreachable policy branch. The `SeverityEnforcementPolicy`/`EnforcementDecision`
+  classes remain exported from `sec_audit.enforcement` (now with direct unit coverage).
+
+### CI / docs
+- **`django-sec-audit-enforcement`** — added Python 3.14 to the Enforcement CI matrix
+  (the classifier already advertised it; `Logging`/`Rules` already tested it).
+- **`sec-audit-rules`** — documented that `Rule.history_attributes` output is **not
+  scrubbed** and must not carry secrets/PII (docstring + `CLAUDE.md`).
+
 ## [2026-06-25]
 
 Released: **`sec-audit-logging` 0.1.0a2**, **`sec-audit-rules` 0.1.0a3**,
