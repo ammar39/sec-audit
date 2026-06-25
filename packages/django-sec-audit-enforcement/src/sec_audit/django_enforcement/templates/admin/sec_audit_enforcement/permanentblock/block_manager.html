@@ -1,6 +1,183 @@
 {% extends "admin/base_site.html" %}
 {% load i18n %}
 
+{% block extrastyle %}{{ block.super }}
+<style>
+  /* Scoped to the Block manager page; all colours come from Django admin's
+     CSS variables so the page tracks the active theme (incl. dark mode). */
+  .sa-bm { max-width: 1040px; }
+  .sa-bm .sa-intro {
+    margin: 0 0 22px; max-width: 72ch; line-height: 1.5;
+    color: var(--body-quiet-color);
+  }
+
+  .sa-card {
+    border: 1px solid var(--hairline-color, var(--border-color));
+    border-radius: 10px; margin-bottom: 26px; overflow: hidden;
+    background: var(--body-bg);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
+  }
+  .sa-card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 20px; background: var(--darkened-bg);
+    border-bottom: 1px solid var(--hairline-color, var(--border-color));
+  }
+  .sa-card-head h2 {
+    margin: 0; font-size: 15px; font-weight: 700; line-height: 1.2;
+    color: var(--body-loud-color, var(--body-fg));
+  }
+  .sa-card-head .sa-sub { color: var(--body-quiet-color); font-size: 12px; }
+  .sa-card-body { padding: 20px; }
+
+  .sa-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 22px; height: 22px; padding: 0 8px; border-radius: 999px;
+    background: var(--primary); color: var(--header-link-color, #fff);
+    font-size: 12px; font-weight: 700;
+  }
+  .sa-spacer { flex: 1; }
+
+  /* ── Form ── */
+  .sa-grid {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+  .sa-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .sa-field--wide { grid-column: 1 / -1; }
+  .sa-field > label {
+    font-size: 11px; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--body-quiet-color);
+  }
+  .sa-field input[type=text], .sa-field input[type=number], .sa-field select {
+    width: 100%; box-sizing: border-box; margin: 0; height: 38px;
+    padding: 0 11px; font-size: 13px; line-height: 1.3;
+    border: 1px solid var(--border-color); border-radius: 7px;
+    background: var(--body-bg); color: var(--body-fg);
+  }
+  .sa-field input:focus, .sa-field select:focus {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(70, 130, 180, .25);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent);
+  }
+  .sa-field .helptext, .sa-field .sa-help {
+    margin: 0; font-size: 11px; line-height: 1.4; color: var(--body-quiet-color);
+  }
+  .sa-field .errorlist {
+    margin: 0; padding: 0; list-style: none;
+    font-size: 11px; font-weight: 600; color: var(--error-fg, #ba2121);
+  }
+
+  .sa-advanced {
+    margin-top: 16px; padding-top: 14px;
+    border-top: 1px dashed var(--hairline-color, var(--border-color));
+  }
+  .sa-advanced > summary {
+    cursor: pointer; user-select: none; list-style: none;
+    font-size: 12px; font-weight: 700; color: var(--link-fg);
+  }
+  .sa-advanced > summary::-webkit-details-marker { display: none; }
+  .sa-advanced > summary::before {
+    content: '\25B8'; display: inline-block; margin-right: 7px;
+    transition: transform .15s ease;
+  }
+  .sa-advanced[open] > summary::before { transform: rotate(90deg); }
+  .sa-advanced .sa-grid { margin-top: 16px; }
+
+  .sa-actions {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 14px;
+    margin-top: 22px;
+  }
+  .sa-actions .sa-hint { font-size: 12px; color: var(--body-quiet-color); }
+
+  /* ── Buttons ── (override admin's generic input[type=submit] styling) */
+  .sa-bm input[type=submit].sa-btn {
+    -webkit-appearance: none; appearance: none; cursor: pointer;
+    font-size: 13px; font-weight: 600; line-height: 1;
+    padding: 9px 18px; border-radius: 7px;
+    border: 1px solid var(--border-color);
+    background: var(--body-bg); color: var(--body-fg);
+  }
+  .sa-bm input[type=submit].sa-btn:hover { background: var(--darkened-bg); }
+  .sa-bm input[type=submit].sa-btn--danger {
+    background: var(--delete-button-bg, #ba2121);
+    border-color: var(--delete-button-bg, #ba2121); color: #fff;
+  }
+  .sa-bm input[type=submit].sa-btn--danger:hover {
+    background: var(--delete-button-hover-bg, #a41515);
+    border-color: var(--delete-button-hover-bg, #a41515);
+  }
+  .sa-bm input[type=submit].sa-btn--sm { padding: 6px 13px; font-size: 12px; }
+
+  /* ── Active blocks table ── */
+  .sa-table { width: 100%; border-collapse: collapse; }
+  .sa-table thead th {
+    text-align: left; padding: 0 14px 11px; white-space: nowrap;
+    font-size: 11px; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--body-quiet-color);
+    border-bottom: 2px solid var(--hairline-color, var(--border-color));
+  }
+  .sa-table tbody td {
+    padding: 13px 14px; vertical-align: middle;
+    border-bottom: 1px solid var(--hairline-color, var(--border-color));
+  }
+  .sa-table tbody tr:last-child td { border-bottom: none; }
+  .sa-table tbody tr:hover { background: var(--darkened-bg); }
+  .sa-table form { margin: 0; }
+  .sa-col-action { text-align: right; }
+
+  .sa-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 3px 11px 3px 9px; border-radius: 999px;
+    border: 1px solid var(--hairline-color, var(--border-color));
+    background: var(--darkened-bg); color: var(--body-fg);
+    font-size: 12px; font-weight: 600;
+  }
+  .sa-chip::before {
+    content: ''; width: 7px; height: 7px; border-radius: 50%;
+    background: #94a3b8; flex: none;
+  }
+  .sa-chip--ip::before { background: #3b82f6; }
+  .sa-chip--user::before { background: #0ab39c; }
+  .sa-chip--session::before { background: #a855f7; }
+
+  .sa-mono {
+    font-family: var(--font-family-monospace, ui-monospace, SFMono-Regular, monospace);
+    font-size: 13px; color: var(--body-fg);
+  }
+  .sa-reason { color: var(--body-fg); }
+  .sa-muted { color: var(--body-quiet-color); }
+  .sa-rule {
+    font-family: var(--font-family-monospace, monospace); font-size: 11px;
+    padding: 2px 7px; border-radius: 5px; background: var(--darkened-bg);
+    color: var(--body-quiet-color);
+  }
+
+  .sa-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; border: 1px solid transparent;
+  }
+  .sa-pill--perm {
+    color: #d97706; background: rgba(217, 119, 6, .14);
+    border-color: rgba(217, 119, 6, .32);
+  }
+  .sa-pill--temp {
+    color: #3b82f6; background: rgba(59, 130, 246, .12);
+    border-color: rgba(59, 130, 246, .30);
+  }
+  .sa-when { display: block; margin-top: 4px; font-size: 11px; color: var(--body-quiet-color); }
+
+  .sa-empty { text-align: center; padding: 44px 20px; color: var(--body-quiet-color); }
+  .sa-empty-icon {
+    width: 50px; height: 50px; margin: 0 auto 14px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--darkened-bg); font-size: 24px; color: #0ab39c;
+  }
+  .sa-empty p { margin: 4px 0; }
+  .sa-foot { margin: 14px 0 0; font-size: 11px; line-height: 1.5; color: var(--body-quiet-color); }
+</style>
+{% endblock %}
+
 {% block breadcrumbs %}
 <div class="breadcrumbs">
   <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
@@ -11,56 +188,133 @@
 {% endblock %}
 
 {% block content %}
-<div id="content-main">
-  <p>{% trans "Block or unblock any subject. Choose a scope, enter the value, and optionally set a TTL in seconds (leave blank for a permanent block)." %}</p>
+<div id="content-main" class="sa-bm">
+  <p class="sa-intro">
+    {% trans "Block or unblock any subject — a user, IP, or session. Pick a scope, enter the value, and optionally set a TTL in seconds (leave it blank for a permanent block). Blocks take effect on the subject's next request." %}
+  </p>
 
-  <form action="{% url 'admin:sec_audit_enforcement_permanentblock_manage' %}" method="post">
-    {% csrf_token %}
-    <fieldset class="module aligned">
-      {{ form.as_div }}
-    </fieldset>
-    <div class="submit-row">
-      <input type="submit" name="block" value="{% trans 'Block' %}" class="default">
-      <input type="submit" name="unblock" value="{% trans 'Unblock' %}">
+  {# ── Create / lift a block ────────────────────────────────────────── #}
+  <div class="sa-card">
+    <div class="sa-card-head">
+      <h2>{% trans 'New block' %}</h2>
+      <span class="sa-sub">{% trans 'Restrict a subject from accessing the app' %}</span>
     </div>
-  </form>
+    <div class="sa-card-body">
+      <form action="{% url 'admin:sec_audit_enforcement_permanentblock_manage' %}" method="post">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
 
-  <h2>{% trans 'Active blocks' %}</h2>
-  {% if active_blocks %}
-  <table>
-    <thead>
-      <tr>
-        <th>{% trans 'Scope' %}</th>
-        <th>{% trans 'Value' %}</th>
-        <th>{% trans 'Reason' %}</th>
-        <th>{% trans 'Rule' %}</th>
-        <th>{% trans 'Expires' %}</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for entry in active_blocks %}
-      <tr>
-        <td>{{ entry.scope.scope_type }}</td>
-        <td>{{ entry.scope.scope_value }}</td>
-        <td>{{ entry.reason|default:'—' }}</td>
-        <td>{{ entry.rule_name|default:'—' }}</td>
-        <td>{{ entry.expires_at|default:'permanent' }}</td>
-        <td>
-          <form action="{% url 'admin:sec_audit_enforcement_permanentblock_manage' %}" method="post">
-            {% csrf_token %}
-            <input type="hidden" name="scope_type" value="{{ entry.scope.scope_type }}">
-            <input type="hidden" name="scope_value" value="{{ entry.scope.scope_value }}">
-            <input type="submit" name="unblock" value="{% trans 'Unblock' %}">
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <p class="help">{% trans "Only durable (permanent) blocks are listed; temporary (Redis-only) blocks auto-expire and may not appear here on a tiered deployment." %}</p>
-  {% else %}
-  <p>{% trans 'No active blocks.' %}</p>
-  {% endif %}
+        <div class="sa-grid">
+          <div class="sa-field">
+            <label for="{{ form.scope_type.id_for_label }}">{% trans 'Scope' %}</label>
+            {{ form.scope_type }}
+            {{ form.scope_type.errors }}
+          </div>
+          <div class="sa-field">
+            <label for="{{ form.scope_value.id_for_label }}">{% trans 'Value' %}</label>
+            {{ form.scope_value }}
+            {{ form.scope_value.errors }}
+            <p class="sa-help">{% trans 'User id, IP address, or session key.' %}</p>
+          </div>
+          <div class="sa-field">
+            <label for="{{ form.ttl.id_for_label }}">{% trans 'TTL (seconds)' %}</label>
+            {{ form.ttl }}
+            {{ form.ttl.errors }}
+            <p class="sa-help">{{ form.ttl.help_text }}</p>
+          </div>
+          <div class="sa-field sa-field--wide">
+            <label for="{{ form.reason.id_for_label }}">{% trans 'Reason' %}</label>
+            {{ form.reason }}
+            {{ form.reason.errors }}
+            <p class="sa-help">{% trans 'Recorded with the block for the audit trail.' %}</p>
+          </div>
+        </div>
+
+        <details class="sa-advanced">
+          <summary>{% trans 'Advanced overrides' %}</summary>
+          <div class="sa-grid">
+            <div class="sa-field">
+              <label for="{{ form.status_code.id_for_label }}">{% trans 'Status code' %}</label>
+              {{ form.status_code }}
+              {{ form.status_code.errors }}
+              <p class="sa-help">{{ form.status_code.help_text }}</p>
+            </div>
+            <div class="sa-field">
+              <label for="{{ form.message.id_for_label }}">{% trans 'Message' %}</label>
+              {{ form.message }}
+              {{ form.message.errors }}
+              <p class="sa-help">{% trans 'Body returned to the blocked subject.' %}</p>
+            </div>
+          </div>
+        </details>
+
+        <div class="sa-actions">
+          <input type="submit" name="block" value="{% trans 'Block subject' %}" class="sa-btn sa-btn--danger">
+          <input type="submit" name="unblock" value="{% trans 'Unblock' %}" class="sa-btn">
+          <span class="sa-hint">{% trans '“Unblock” lifts an existing block for the same scope and value.' %}</span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# ── Active blocks ────────────────────────────────────────────────── #}
+  <div class="sa-card">
+    <div class="sa-card-head">
+      <h2>{% trans 'Active blocks' %}</h2>
+      <span class="sa-count">{{ active_blocks|length }}</span>
+      <span class="sa-spacer"></span>
+    </div>
+    {% if active_blocks %}
+    <div class="sa-card-body">
+      <table class="sa-table">
+        <thead>
+          <tr>
+            <th>{% trans 'Scope' %}</th>
+            <th>{% trans 'Subject' %}</th>
+            <th>{% trans 'Reason' %}</th>
+            <th>{% trans 'Rule' %}</th>
+            <th>{% trans 'Duration' %}</th>
+            <th class="sa-col-action"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in active_blocks %}
+          <tr>
+            <td><span class="sa-chip sa-chip--{{ entry.scope.scope_type }}">{{ entry.scope.scope_type }}</span></td>
+            <td><span class="sa-mono">{{ entry.scope.scope_value }}</span></td>
+            <td class="sa-reason">{{ entry.reason|default:'—' }}</td>
+            <td>{% if entry.rule_name %}<span class="sa-rule">{{ entry.rule_name }}</span>{% else %}<span class="sa-muted">—</span>{% endif %}</td>
+            <td>
+              {% if entry.expires_at %}
+                <span class="sa-pill sa-pill--temp">{% trans 'Temporary' %}</span>
+                <span class="sa-when">{% trans 'expires' %} {{ entry.expires_at|date:"M j, Y, g:i a" }}</span>
+              {% else %}
+                <span class="sa-pill sa-pill--perm">{% trans 'Permanent' %}</span>
+                {% if entry.created_at %}<span class="sa-when">{% trans 'since' %} {{ entry.created_at|date:"M j, Y" }}</span>{% endif %}
+              {% endif %}
+            </td>
+            <td class="sa-col-action">
+              <form action="{% url 'admin:sec_audit_enforcement_permanentblock_manage' %}" method="post"
+                    onsubmit="return confirm('{% blocktrans with t=entry.scope.scope_type|escapejs v=entry.scope.scope_value|escapejs %}Lift the block on {{ t }}:{{ v }}?{% endblocktrans %}');">
+                {% csrf_token %}
+                <input type="hidden" name="scope_type" value="{{ entry.scope.scope_type }}">
+                <input type="hidden" name="scope_value" value="{{ entry.scope.scope_value }}">
+                <input type="submit" name="unblock" value="{% trans 'Unblock' %}" class="sa-btn sa-btn--sm">
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="sa-foot">{% trans "Only durable (permanent) blocks are listed; temporary (Redis-only) blocks auto-expire and may not appear here on a tiered deployment." %}</p>
+    </div>
+    {% else %}
+    <div class="sa-empty">
+      <div class="sa-empty-icon">&#10003;</div>
+      <p>{% trans 'No active blocks.' %}</p>
+      <p class="sa-muted">{% trans 'Subjects you block will appear here.' %}</p>
+    </div>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}
