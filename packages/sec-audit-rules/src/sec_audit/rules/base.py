@@ -87,6 +87,13 @@ class Rule:
         Must be a pure detector method: no side effects. The engine owns the write
         and coerces the returned mapping for serialization, but does NOT scrub it —
         the rule is trusted to choose what it persists. Default contributes nothing.
+
+        SECURITY: because the engine does not scrub these values, they must NOT
+        carry secrets or PII. The history store (e.g. Redis) is a separate
+        retention/exposure surface from the scrubbed log stream, and later events
+        in the same scope window read these values back. Persist only derived,
+        non-sensitive correlation data (ids, fingerprints, route templates) — never
+        raw request data that could contain credentials, tokens, or personal data.
         """
         return None
 
