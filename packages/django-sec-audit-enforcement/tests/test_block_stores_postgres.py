@@ -1,8 +1,9 @@
 import pytest
+from django.db import IntegrityError
 from sec_audit.enforcement.blocks import BlockScope
 
 from sec_audit.django_enforcement.models import PermanentBlock
-from sec_audit.django_enforcement.stores import PostgresBlockStore
+from sec_audit.django_enforcement.stores import BlockStoreError, PostgresBlockStore
 
 pytestmark = pytest.mark.django_db
 
@@ -17,6 +18,19 @@ def test_block_is_idempotent_one_active_row():
     )
     assert active.count() == 1
     assert active.first().reason == 'second'
+
+
+def test_block_wraps_concurrent_integrity_error(monkeypatch):
+    """A racing insert that violates the partial unique constraint surfaces as
+    BlockStoreError (the package's error contract), not a raw IntegrityError."""
+    store = PostgresBlockStore()
+
+    def boom(*args, **kwargs):
+        raise IntegrityError('duplicate active block')
+
+    monkeypatch.setattr(PermanentBlock.objects, 'update_or_create', boom)
+    with pytest.raises(BlockStoreError):
+        store.block(BlockScope('ip', '5.5.5.5'))
 
 
 def test_get_and_first_active_precedence():

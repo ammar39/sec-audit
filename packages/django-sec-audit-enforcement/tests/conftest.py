@@ -1,7 +1,6 @@
 import fakeredis
 import pytest
 
-from sec_audit.enforcement.policies import SeverityEnforcementPolicy
 from sec_audit.rules.builtins import (
     BruteForceLoginRule,
     LoginThrottleRule,
@@ -91,9 +90,6 @@ def _build_runtime(
         result_sinks=(enforcer,) if config.apply_via_sink else (),
         fail_open=config.fail_open,
     )
-    policy = SeverityEnforcementPolicy(
-        block_severity=config.enforcement.enforcement_block_severity
-    )
     return DjangoEnforcementRuntime(
         config=config,
         scope_registry=registry,
@@ -101,7 +97,6 @@ def _build_runtime(
         block_store=block_store,
         enforcer=enforcer,
         emitter=emitter,
-        policy=policy,
         schema_version='1.0',
     )
 

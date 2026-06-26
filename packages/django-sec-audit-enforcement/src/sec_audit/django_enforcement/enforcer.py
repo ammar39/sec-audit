@@ -55,7 +55,6 @@ class Enforcer:
             configured_actions=self.rule_actions,
             block_rules=self.block_rules,
             default_ttl=self.default_ttl,
-            policy_decision=None,
             default_action=self.default_action,
         )
 
@@ -112,6 +111,16 @@ class Enforcer:
                 'srcip': match.srcip or '',
                 'session_id': match.session_id or '',
             }
+            if 'user' in (action.scopes or ()):
+                # The match carries no user identity, so the sink path cannot
+                # apply a user-scoped ban — only the consumer/egress path
+                # (apply_via_sink=False) has the full event with user_id.
+                logger.warning(
+                    'apply_via_sink: rule %r resolves a user-scoped action but '
+                    'the sink path carries no user identity; the user dimension '
+                    'is not applied. Use apply_via_sink=False for user-scoped bans.',
+                    match.rule_name,
+                )
             for built in self.apply(match, action, summary):
                 if self._emitter is not None:
                     self._emitter.emit(built)

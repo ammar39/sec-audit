@@ -4,6 +4,7 @@ from sec_audit.rules.events import RuleEvent, create_history_summary
 from sec_audit.rules.history import (
     DEFAULT_HISTORY_SCOPE_EXTRACTORS,
     build_history_scope_extractors,
+    extract_scope_keys,
 )
 from sec_audit.rules.scopes import ScopeRegistry
 
@@ -53,3 +54,21 @@ def test_history_summary_keeps_ip_for_scoping():
     )
     summary = create_history_summary(event)
     assert summary.get('srcip') == '198.51.100.7'
+
+
+def test_history_summary_keeps_session_id_for_scoping():
+    # session_id normalizes to 'sessionid', which is a DEFAULT_SENSITIVE_KEYS
+    # denylist entry. Without the scope-key allowlist it scrubs to '[REDACTED]'
+    # and every session collapses into one 'session:[REDACTED]' history bucket.
+    event = RuleEvent.from_mapping(
+        {'event_type': 'auth.login.failed', 'session.id': 'sess-abc123'}
+    )
+    summary = create_history_summary(event)
+    assert summary.get('session_id') == 'sess-abc123'
+
+    keys = {
+        k.as_string()
+        for k in extract_scope_keys(summary, build_history_scope_extractors())
+    }
+    assert 'session:sess-abc123' in keys
+    assert 'session:[REDACTED]' not in keys

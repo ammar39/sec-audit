@@ -61,6 +61,15 @@ and applies any matches as blocks, emitting
 [`audit.enforcement.block_applied`](events.md). Emitted `audit.enforcement.*`
 events are on the engine skip-list, so there is **no feedback loop**.
 
+> **Performance — egress detection runs inline on the response path.** Once the
+> enforcement consumer is registered, **every** non-error response (2xx/3xx),
+> not only logged ones, builds its audit event and runs the full rule set
+> synchronously before the response returns — this is deliberate so rules see
+> good traffic even when `log_ok_responses=False`. The cost scales with the
+> number of rules and the latency of their counter/history backend, so prefer a
+> Redis-backed store and a lean custom rule set on high-throughput APIs. There is
+> no async/threaded offload today; detection is fail-open per consumer.
+
 ### Ingress vs. egress: which path runs a rule?
 
 | Rule property | Ingress (pre-response) | Egress (post-response) |

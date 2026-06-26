@@ -104,7 +104,7 @@ def _fail_closed(config, path: str) -> bool:
 
 
 def _deny(status_code, message) -> HttpResponse:
-    return HttpResponse(message, status=int(status_code))
+    return HttpResponse(message, status=int(status_code), content_type='text/plain')
 
 
 def _safe_emit(runtime, *, fail_mode: str, error) -> None:

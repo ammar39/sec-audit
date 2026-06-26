@@ -258,9 +258,12 @@ class PermanentBlockAdmin(admin.ModelAdmin):
         return request.user.has_perm('sec_audit_enforcement.add_permanentblock')
 
     def has_change_permission(self, request, obj=None):
-        # True so the change view + bulk-action UI render; edits are blocked via
-        # get_readonly_fields + a no-op save_model on change.
-        return True
+        # Gate the change view + the revoke_blocks action on the real change
+        # permission. Edits are still blocked via get_readonly_fields + a no-op
+        # save_model on change; this only controls who may reach the change view
+        # and run revoke. The changelist stays readable for view-only staff via
+        # the default has_view_permission.
+        return request.user.has_perm('sec_audit_enforcement.change_permanentblock')
 
     def has_delete_permission(self, request, obj=None):
         return False
@@ -303,7 +306,7 @@ class PermanentBlockAdmin(admin.ModelAdmin):
         obj.expires_at = entry.expires_at
         super().save_model(request, obj, form, change)
 
-    @admin.action(description='Revoke selected blocks')
+    @admin.action(description='Revoke selected blocks', permissions=['change'])
     def revoke_blocks(self, request, queryset):
         revoked = 0
         for row in queryset.filter(revoked_at__isnull=True):

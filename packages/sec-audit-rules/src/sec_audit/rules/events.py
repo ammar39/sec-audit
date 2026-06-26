@@ -69,6 +69,21 @@ _HISTORY_WHITELIST = (
 )
 
 
+# Fields the history scope extractors key on (history.py). They must survive
+# scrubbing: a redacted value becomes the scope key — e.g. session_id normalizes
+# to 'sessionid', collides with the DEFAULT_SENSITIVE_KEYS denylist, and
+# collapses every session into one '[REDACTED]' bucket. Allowlisted by exact
+# normalized-key match, so only these exact system identifiers are exempt;
+# sensitive body values still scrub.
+_SCOPE_KEY_FIELDS = (
+    SummaryKey.SESSION_ID,
+    SummaryKey.SRCIP,
+    SummaryKey.USER_ID,
+    SummaryKey.USERNAME,
+    SummaryKey.ROUTE,
+)
+
+
 def _str(value: object) -> str:
     return str(value) if value is not None else ''
 
@@ -369,6 +384,7 @@ def create_history_summary(
             summary,
             sensitive_keys=sensitive_keys,
             value_patterns=value_patterns,
+            allowlist=_SCOPE_KEY_FIELDS,
         )
     )
     return safe if isinstance(safe, Mapping) else {}

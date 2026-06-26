@@ -16,10 +16,14 @@ Manual blocks reuse the existing event taxonomy with ``rule_name='manual'``
 
 from __future__ import annotations
 
+import logging
+
 from sec_audit.enforcement.blocks import BlockEntry, BlockScope
 
 from sec_audit.django_enforcement import emit as emit_mod
 from sec_audit.django_enforcement.runtime import get_enforcement_runtime
+
+logger = logging.getLogger('sec_audit.enforcement')
 
 USER_SCOPE = 'user'
 IP_SCOPE = 'ip'
@@ -71,6 +75,15 @@ def block_subject(
     """
     runtime = get_enforcement_runtime()
     scope = BlockScope(scope_type, _subject_id(scope_value))
+    if scope.scope_type == IP_SCOPE and ttl is None:
+        # Operator override is allowed, but a permanent ip-scoped ban on shared
+        # egress (NAT, mobile carrier) can lock out many users — surface it.
+        logger.warning(
+            'Permanent IP block requested for %s. A permanent ip-scoped ban on '
+            'shared egress (NAT, mobile carrier) can lock out many users; '
+            'consider a ttl or a user/session scope.',
+            scope.scope_value,
+        )
     meta = dict(metadata or {})
     if actor:
         meta.setdefault('actor', actor)

@@ -809,3 +809,33 @@ def test_history_append_failure_logs_at_warning(caplog):
         and 'Failed to append audit event history' in r.message
         for r in caplog.records
     ), [r.message for r in caplog.records]
+
+
+def test_ingress_pass_does_not_append_history():
+    """The enforcement_only ingress pass evaluates rules but must NOT write
+    history; only the egress pass appends, so a request is counted once (the
+    synthetic pre-request event shares the real event's scope keys)."""
+
+    class ContextRule(Rule):
+        name = 'ctx'
+        event_types = {'http.request'}
+
+        def evaluate(self, event, ctx):
+            return None
+
+    history = MemoryEventHistoryStore()
+    engine = RuleEngine(
+        [ContextRule()],
+        counters=MemoryCounterStore(),
+        history=history,
+    )
+    event = {'event_type': 'http.request', 'user_id': 'u1'}
+
+    engine.evaluate(event, enforcement_only=True)
+    assert (
+        history.query(scope_key='user:u1', event_types=None, since=0.0, limit=100) == []
+    )
+
+    engine.evaluate(event)
+    rows = history.query(scope_key='user:u1', event_types=None, since=0.0, limit=100)
+    assert len(rows) == 1
