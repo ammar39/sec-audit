@@ -40,6 +40,15 @@ Code-review follow-ups across `sec-audit-rules` and `django-sec-audit-enforcemen
   `text/plain` instead of the default `text/html`.
 
 ### Fixed
+- **`sec-audit-rules`** — session-scope history keys no longer collapse to
+  `sec_audit:hist:session:[REDACTED]`. `create_history_summary` scrubbed the summary
+  before scope keys were extracted from it, and `session_id` normalizes to `sessionid`
+  — a `DEFAULT_SENSITIVE_KEYS` denylist entry — so every session merged into one
+  `[REDACTED]` history bucket (breaking per-session correlation). The scope-key fields
+  (`session_id`, `srcip`, `user_id`, `username`, `route`) are now allowlisted from the
+  history-summary scrub, so they survive intact in both the scope key and the stored
+  summary body; genuinely sensitive body values still scrub. Only `session` was
+  affected in practice (the other scope fields don't collide with the denylist).
 - **`django-sec-audit-enforcement`** — `PostgresBlockStore.block()` is now atomic
   (`update_or_create` inside `transaction.atomic()`), closing a check-then-create race
   where two concurrent re-bans of the same scope could raise a raw `IntegrityError`;
