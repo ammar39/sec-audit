@@ -20,6 +20,7 @@ from sec_audit.django_enforcement.emit import (
 from sec_audit.django_enforcement.models import PermanentBlock
 from sec_audit.django_enforcement.runtime import DjangoEnforcementRuntime
 from sec_audit.django_enforcement.stores import MemoryBlockStore
+from sec_audit.rules.triggers import TriggerRegistry
 
 pytestmark = pytest.mark.django_db
 
@@ -151,6 +152,7 @@ def test_save_model_persists_row_with_memory_store():
             enforcer=None,
             emitter=EnforcementEmitter(lambda event, level: None),
             schema_version='1.0',
+            trigger_registry=TriggerRegistry.from_specs(),
         )
     )
     model_admin = PermanentBlockAdmin(PermanentBlock, AdminSite())

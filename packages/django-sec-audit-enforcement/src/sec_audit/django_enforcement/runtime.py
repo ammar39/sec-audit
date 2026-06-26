@@ -23,7 +23,7 @@ from sec_audit.django.runtime import (
     register_rule_event_consumer,
     unregister_rule_event_consumer,
 )
-from sec_audit.rules.base import Rule
+from sec_audit.rules.base import Rule, RuleMatch
 from sec_audit.rules.config import RulesAuditConfig
 from sec_audit.rules.engine import RuleEngine
 from sec_audit.rules.events import RuleEvent
@@ -37,10 +37,12 @@ from sec_audit.rules.stores import (
     build_counter_store,
     build_history_store,
 )
+from sec_audit.rules.triggers import TriggerRegistry
 
 from sec_audit.django_enforcement.config import DjangoEnforcementConfig
 from sec_audit.django_enforcement.emit import EnforcementEmitter
 from sec_audit.django_enforcement.enforcer import Enforcer
+from sec_audit.django_enforcement.triggers import DEFAULT_TRIGGERS
 from sec_audit.django_enforcement.stores import (
     MemoryBlockStore,
     PostgresBlockStore,
@@ -66,26 +68,30 @@ class DjangoEnforcementRuntime:
     enforcer: Enforcer
     emitter: EnforcementEmitter
     schema_version: str
+    trigger_registry: TriggerRegistry
 
-    def handle_event(self, event) -> None:
-        """Egress detection + application for one recorded event (all types)."""
+    def handle_event(self, event) -> list[RuleMatch]:
+        """Egress detection + application for one recorded event (all types).
+
+        Returns the rule matches. The registered ``record()`` consumer ignores the
+        return; the public ``fire_event`` entry point uses it to report results."""
         rule_event = RuleEvent.from_mapping(event)
         matches = self.engine.evaluate(rule_event)
         if self.config.apply_via_sink:
-            return  # the engine result-sink already applied
+            return matches  # the engine result-sink already applied
         if not matches:
-            return
-        # Derive ban scopes from the UNSCRUBBED event fields: the scope values
-        # (ip/session/user) must be the real ban dimensions. The log summary
-        # scrubs them (the default sensitive keys redact ``session_id``), which
-        # would collapse every session onto one ban key. Block metadata is
-        # scrubbed separately by the enforcer; the log output is scrubbed by the
-        # emit pipeline — only the scope keys are taken in the clear here.
+            return matches
+        # Derive ban scopes + block metadata from the full event fields: the scope
+        # values (ip/session/user) must be the real ban dimensions, and the history
+        # summary (create_history_summary) is a trimmed whitelist that need not carry
+        # every field. Block metadata is scrubbed by the enforcer; the log output is
+        # scrubbed by the emit pipeline.
         summary = rule_event.to_dict()
         for match in matches:
             action = self.enforcer.resolve_action(match)
             for built in self.enforcer.apply(match, action, summary):
                 self.emitter.emit(built)
+        return matches
 
 
 def setup_enforcement() -> None:
@@ -96,13 +102,14 @@ def setup_enforcement() -> None:
     config = DjangoEnforcementConfig.from_settings(settings)
     _config = config
     if config.enabled:
-        # Resolve the full rule set now so a deterministic config/import error in
-        # a custom rule spec fails the boot here — instead of being swallowed by
-        # the request-time fail-open in the middleware/consumer (which must stay
-        # fail-open for genuine Redis/store outages). Rule resolution touches no
-        # Redis, so migrate/check/collectstatic still work when Redis is down;
-        # the result is discarded — _build_runtime re-resolves lazily.
+        # Resolve the full rule set + trigger registry now so a deterministic
+        # config/import error in a custom rule or trigger spec fails the boot here —
+        # instead of being swallowed by the request-time fail-open in the
+        # middleware/consumer (which must stay fail-open for genuine Redis/store
+        # outages). Neither touches Redis, so migrate/check/collectstatic still work
+        # when Redis is down; results are discarded — _build_runtime re-resolves.
         _all_rules(config)
+        _build_trigger_registry(config)
         from sec_audit.django_enforcement.consumer import consume
 
         register_rule_event_consumer(consume)
@@ -175,6 +182,7 @@ def _build_runtime(config: DjangoEnforcementConfig) -> 'DjangoEnforcementRuntime
         enforcer=enforcer,
         emitter=emitter,
         schema_version=schema_version,
+        trigger_registry=_build_trigger_registry(config),
     )
 
 
@@ -191,6 +199,17 @@ def _build_registry(config: DjangoEnforcementConfig) -> ScopeRegistry:
             ordered.append(by_name.pop(name))
     ordered.extend(d for d in registry.definitions if d.name in by_name)
     return ScopeRegistry(ordered)
+
+
+def _build_trigger_registry(config: DjangoEnforcementConfig) -> TriggerRegistry:
+    """Built-in ``DEFAULT_TRIGGERS`` plus user-registered custom triggers (appended).
+
+    ``config.trigger_specs`` entries are dotted ``"module.attr"`` paths (imported
+    here, eagerly at ``ready()`` — settings-parse only validated the shape) or
+    already-built ``Trigger`` objects/factories. Duplicate names across the combined
+    set are rejected fail-fast by ``TriggerRegistry``.
+    """
+    return TriggerRegistry.from_specs(config.trigger_specs, defaults=DEFAULT_TRIGGERS)
 
 
 def _build_detection_stores(config: DjangoEnforcementConfig):

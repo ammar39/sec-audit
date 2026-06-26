@@ -57,9 +57,10 @@ def test_history_summary_keeps_ip_for_scoping():
 
 
 def test_history_summary_keeps_session_id_for_scoping():
-    # session_id normalizes to 'sessionid', which is a DEFAULT_SENSITIVE_KEYS
-    # denylist entry. Without the scope-key allowlist it scrubs to '[REDACTED]'
-    # and every session collapses into one 'session:[REDACTED]' history bucket.
+    # session_id normalizes to 'sessionid', a DEFAULT_SENSITIVE_KEYS denylist entry.
+    # The history summary used to scrub it to '[REDACTED]' (collapsing every session
+    # into one 'session:[REDACTED]' bucket); the scrub is now removed, so the
+    # whitelist alone preserves it as the real scope key.
     event = RuleEvent.from_mapping(
         {'event_type': 'auth.login.failed', 'session.id': 'sess-abc123'}
     )

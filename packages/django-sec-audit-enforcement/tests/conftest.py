@@ -9,10 +9,12 @@ from sec_audit.rules.builtins import (
 from sec_audit.rules.engine import RuleEngine
 from sec_audit.rules.scopes import ScopeRegistry
 from sec_audit.rules.stores.redis import RedisCounterStore, RedisEventHistoryStore
+from sec_audit.rules.triggers import TriggerRegistry
 
 from sec_audit.django_enforcement.config import DjangoEnforcementConfig
 from sec_audit.django_enforcement.emit import EnforcementEmitter
 from sec_audit.django_enforcement.enforcer import Enforcer
+from sec_audit.django_enforcement.triggers import DEFAULT_TRIGGERS
 from sec_audit.django_enforcement.runtime import (
     DjangoEnforcementRuntime,
     reset_enforcement_runtime,
@@ -98,6 +100,7 @@ def _build_runtime(
         enforcer=enforcer,
         emitter=emitter,
         schema_version='1.0',
+        trigger_registry=TriggerRegistry.from_specs(defaults=DEFAULT_TRIGGERS),
     )
 
 

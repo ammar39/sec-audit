@@ -17,8 +17,13 @@ Manual blocks reuse the existing event taxonomy with ``rule_name='manual'``
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 
+from sec_audit.core.exceptions import AuditConfigurationError
 from sec_audit.enforcement.blocks import BlockEntry, BlockScope
+from sec_audit.rules.base import RuleMatch
+from sec_audit.rules.engine import is_internal_event_type
+from sec_audit.rules.triggers import MappingEventBuilder
 
 from sec_audit.django_enforcement import emit as emit_mod
 from sec_audit.django_enforcement.runtime import get_enforcement_runtime
@@ -44,6 +49,7 @@ __all__ = [
     'unblock_user',
     'is_user_blocked',
     'list_blocked_users',
+    'fire_event',
 ]
 
 
@@ -190,3 +196,42 @@ def is_user_blocked(user) -> BlockEntry | None:
 def list_blocked_users() -> list[BlockEntry]:
     """List active user-scoped blocks. See :func:`list_active_blocks`."""
     return list_active_blocks(scope_type=USER_SCOPE)
+
+
+# ── Custom events ────────────────────────────────────────────────────────────
+
+
+def fire_event(
+    event_type: str,
+    fields: Mapping[str, object] | None = None,
+    *,
+    trigger: str | None = None,
+) -> list[RuleMatch]:
+    """Fire a custom normalized event through the rule engine and return its matches.
+
+    Application code (a view, a Celery task, a domain signal) calls this to push its
+    own event into the SAME ``engine.evaluate`` → enforcement → emit path the built-in
+    triggers use. Custom rules subscribe by ``Rule.event_types``; any match yields the
+    usual ``audit.enforcement.*`` event and may apply a block — no new schema.
+
+    ``fields`` are the normalized event attributes. ``trigger`` optionally selects a
+    registered trigger's builder (otherwise a pass-through builder is used). The
+    ``event_type`` must not use a reserved internal namespace (``audit.rule.*`` /
+    ``audit.enforcement.*`` / ``audit.context.*``) — the engine skip-lists those, so a
+    custom event using one would silently no-op.
+    """
+    if is_internal_event_type(event_type):
+        raise AuditConfigurationError(
+            f'fire_event event_type {event_type!r} uses a reserved internal namespace '
+            '(audit.rule.*/audit.enforcement.*/audit.context.*).'
+        )
+    runtime = get_enforcement_runtime()
+    if trigger is not None:
+        registered = runtime.trigger_registry.by_name(trigger)
+        if registered is None:
+            raise AuditConfigurationError(f'Unknown trigger {trigger!r}.')
+        builder = registered.builder
+    else:
+        builder = MappingEventBuilder()
+    rule_event = builder.build({**dict(fields or {}), 'event_type': event_type})
+    return runtime.handle_event(rule_event)

@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from sec_audit.core.config import DEFAULT_SENSITIVE_KEYS
 from sec_audit.core.json import json_safe
-from sec_audit.core.scrubbers import scrub
 
 
 class SummaryKey:
@@ -66,21 +64,6 @@ _HISTORY_WHITELIST = (
     SummaryKey.DRF_AUTHENTICATION_CLASSES,
     SummaryKey.DRF_PERMISSION_CLASSES,
     SummaryKey.DRF_THROTTLE_SCOPE,
-)
-
-
-# Fields the history scope extractors key on (history.py). They must survive
-# scrubbing: a redacted value becomes the scope key — e.g. session_id normalizes
-# to 'sessionid', collides with the DEFAULT_SENSITIVE_KEYS denylist, and
-# collapses every session into one '[REDACTED]' bucket. Allowlisted by exact
-# normalized-key match, so only these exact system identifiers are exempt;
-# sensitive body values still scrub.
-_SCOPE_KEY_FIELDS = (
-    SummaryKey.SESSION_ID,
-    SummaryKey.SRCIP,
-    SummaryKey.USER_ID,
-    SummaryKey.USERNAME,
-    SummaryKey.ROUTE,
 )
 
 
@@ -353,9 +336,6 @@ class ModelFields:
 
 def create_history_summary(
     event: RuleEvent | Mapping[str, object],
-    *,
-    sensitive_keys: Sequence[str] = DEFAULT_SENSITIVE_KEYS,
-    value_patterns: Sequence[object] = (),
 ) -> Mapping[str, object]:
     raw = RuleEvent.from_mapping(event).to_dict()
     summary = {
@@ -379,12 +359,5 @@ def create_history_summary(
             }
             if selected:
                 summary[container] = selected
-    safe = json_safe(
-        scrub(
-            summary,
-            sensitive_keys=sensitive_keys,
-            value_patterns=value_patterns,
-            allowlist=_SCOPE_KEY_FIELDS,
-        )
-    )
+    safe = json_safe(summary)
     return safe if isinstance(safe, Mapping) else {}

@@ -55,6 +55,7 @@ _KNOWN_KEYS = {
     'rule_actions',
     'block_rules',
     'rules',
+    'trigger_specs',
 }
 
 
@@ -76,6 +77,11 @@ class DjangoEnforcementConfig:
     # the actual import/instantiation runs eagerly at ``ready()`` in
     # ``setup_enforcement`` (via ``_all_rules``).
     rules: tuple[object, ...] = ()
+    # User-registered custom triggers: import-path strings (``"module.attr"``) to a
+    # ``Trigger`` (or a factory returning one), or already-built ``Trigger`` objects.
+    # As with ``rules``, only the ``"module.attr"`` string shape is validated here;
+    # the import/build runs eagerly at ``ready()`` (via ``_build_trigger_registry``).
+    trigger_specs: tuple[object, ...] = ()
     block_precedence: tuple[str, ...] = ()
     status_code: int = 429
     message: str = DEFAULT_BLOCK_MESSAGE
@@ -147,6 +153,9 @@ class DjangoEnforcementConfig:
             ),
             scope_specs=cv.sequence('scope_specs', raw.get('scope_specs', ())),
             rules=cv.importable_tuple('rules', raw.get('rules', ())),
+            trigger_specs=cv.importable_tuple(
+                'trigger_specs', raw.get('trigger_specs', ())
+            ),
             block_precedence=cv.str_tuple(
                 'block_precedence', raw.get('block_precedence', ())
             ),
