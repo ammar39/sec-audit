@@ -1,9 +1,11 @@
 # Custom rules
 
-The package ships three built-in rules (`brute_force_login`, `login_throttle`,
-`repeated_client_error`). You can register your own detectors via the
-`SEC_AUDIT_ENFORCEMENT['rules']` setting — they are **appended to** the built-in
-defaults (the defaults always stay on).
+No detectors run unless you register them. `SEC_AUDIT_ENFORCEMENT['rules']` is
+the single registration surface: list the rules you want there — the shipped
+built-ins (`brute_force_login`, `login_throttle`, `repeated_client_error`,
+`resource_enumeration`, under `sec_audit.rules.builtins`) **and/or** your own
+detectors. The registered set is exactly what `rules` declares; nothing is forced
+on you.
 
 ## The `Rule` API
 
@@ -91,6 +93,17 @@ SEC_AUDIT_ENFORCEMENT = {
   `Rule` instance, or
 - **an already-instantiated `Rule`** passed directly.
 
+The shipped built-ins register the same way — add their dotted paths alongside
+your own (a built-in carries a scope-safe default action, so it blocks once
+registered without a `rule_actions` entry):
+
+```python
+'rules': [
+    'sec_audit.rules.builtins.BruteForceLoginRule',
+    'myapp.security.rules.RepeatedNotFoundRule',
+],
+```
+
 ## Two behaviors to remember
 
 1. **Observe-only by default.** A rule with **no `rule_actions` entry** detects
@@ -114,7 +127,7 @@ Configuration errors surface at app startup, not at request time:
 | Malformed import path (not `"module.attr"`) | `AuditConfigurationError` at `ready()` |
 | Path/object isn't a `Rule` subclass or instance | `AuditConfigurationError` |
 | Empty `name` | `AuditConfigurationError` |
-| Name collides with a built-in (e.g. `brute_force_login`) or another custom rule | `AuditConfigurationError` |
+| Name duplicates another registered rule | `AuditConfigurationError` |
 
 The import-path **shape** is validated at settings-parse time; the rule module is
 then imported and resolved **eagerly at `ready()`** (in `setup_enforcement`), so

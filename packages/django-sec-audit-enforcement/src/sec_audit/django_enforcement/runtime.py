@@ -24,12 +24,6 @@ from sec_audit.django.runtime import (
     unregister_rule_event_consumer,
 )
 from sec_audit.rules.base import Rule
-from sec_audit.rules.builtins import (
-    BruteForceLoginRule,
-    LoginThrottleRule,
-    RepeatedClientErrorRule,
-    ResourceEnumerationRule,
-)
 from sec_audit.rules.config import RulesAuditConfig
 from sec_audit.rules.engine import RuleEngine
 from sec_audit.rules.events import RuleEvent
@@ -229,21 +223,6 @@ def _build_block_store(config: DjangoEnforcementConfig):
     )
 
 
-def _default_rules():
-    # Conservative, generally-applicable default set. brute_force_login counts
-    # auth failures (egress); login_throttle is the ingress fast path; both are
-    # wired to scope-safe temp ip-blocks via DEFAULT_RULE_ACTIONS.
-    # resource_enumeration is alert-only (not in DEFAULT_RULE_ACTIONS) and is a
-    # no-op until a history store is configured (i.e. Redis); it relies on the
-    # 'ip' scope, which is a registry default.
-    return [
-        BruteForceLoginRule(),
-        LoginThrottleRule(),
-        RepeatedClientErrorRule(),
-        ResourceEnumerationRule(),
-    ]
-
-
 def _resolve_custom_rules(config: DjangoEnforcementConfig) -> list[Rule]:
     """Resolve ``config.rules`` specs into ``Rule`` instances.
 
@@ -275,19 +254,20 @@ def _resolve_custom_rules(config: DjangoEnforcementConfig) -> list[Rule]:
 
 
 def _all_rules(config: DjangoEnforcementConfig) -> list[Rule]:
-    """Built-in defaults plus user-registered custom rules (appended).
+    """The user-registered rule set (``SEC_AUDIT_ENFORCEMENT['rules']``).
 
-    Duplicate rule names — across the combined set — are rejected fail-fast so a
-    custom rule cannot silently shadow a built-in (e.g. ``brute_force_login``);
-    enforcement actions key on the rule name, so collisions would be ambiguous.
+    No rules are auto-loaded: deployments register exactly the detectors they
+    want — built-in (``sec_audit.rules.builtins``) or custom. Duplicate rule
+    names are rejected fail-fast because enforcement actions key on the rule
+    name, so collisions would be ambiguous.
     """
-    rules = _default_rules() + _resolve_custom_rules(config)
+    rules = _resolve_custom_rules(config)
     seen: set[str] = set()
     for rule in rules:
         if rule.name in seen:
             raise AuditConfigurationError(
-                f'Duplicate enforcement rule name {rule.name!r}; custom rule '
-                'names must be unique and must not collide with a built-in.'
+                f'Duplicate enforcement rule name {rule.name!r}; registered rule '
+                'names must be unique.'
             )
         seen.add(rule.name)
     return rules

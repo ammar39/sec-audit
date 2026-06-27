@@ -1,8 +1,10 @@
-"""User-registered custom rules via ``SEC_AUDIT_ENFORCEMENT['rules']``.
+"""User-registered rules via ``SEC_AUDIT_ENFORCEMENT['rules']``.
 
-Covers runtime resolution (dotted path / instance / bad object / empty name /
-name collision) and end-to-end behavior: a custom rule blocks only when wired to
-a ``rule_actions`` entry, and observes (no block) otherwise.
+No detectors are auto-loaded: the registered set is exactly what ``rules``
+declares. Covers runtime resolution (dotted path / instance / bad object / empty
+name / duplicate name), the opt-in rule set (no built-ins unless registered), and
+end-to-end behavior: a rule blocks only when wired to a ``rule_actions`` entry,
+and observes (no block) otherwise.
 """
 
 import pytest
@@ -51,8 +53,8 @@ class _NamelessRule(Rule):
         return None
 
 
-class _CollidingRule(Rule):
-    """Reuses a built-in name to prove collisions are rejected."""
+class _FormerBuiltinNameRule(Rule):
+    """Reuses a former built-in name — now allowed, since none are auto-loaded."""
 
     name = 'brute_force_login'
 
@@ -85,12 +87,16 @@ def test_instance_is_used_as_is():
     assert rules[0] is instance
 
 
-def test_custom_rules_appended_to_defaults():
+def test_only_registered_rules_loaded():
     rules = _all_rules(_config(rules=[_AlwaysMatchRule()]))
     names = [r.name for r in rules]
-    # built-in defaults stay on; the custom rule is appended.
-    assert 'brute_force_login' in names
-    assert names[-1] == 'always_match'
+    # No detectors are auto-loaded: the set is exactly what `rules` declares.
+    assert names == ['always_match']
+
+
+def test_no_rules_configured_is_empty():
+    # enabled but no `rules` -> empty set (enforcement inert, nothing forced).
+    assert _all_rules(_config()) == []
 
 
 def test_non_rule_object_raises():
@@ -108,9 +114,16 @@ def test_empty_name_raises():
         _resolve_custom_rules(_config(rules=[_NamelessRule()]))
 
 
-def test_name_collision_with_builtin_raises():
+def test_former_builtin_name_is_allowed():
+    # No built-ins are auto-loaded, so a user may now register a rule under a
+    # former built-in name without colliding.
+    rules = _all_rules(_config(rules=[_FormerBuiltinNameRule()]))
+    assert [r.name for r in rules] == ['brute_force_login']
+
+
+def test_duplicate_registered_names_raise():
     with pytest.raises(AuditConfigurationError):
-        _all_rules(_config(rules=[_CollidingRule()]))
+        _all_rules(_config(rules=[_AlwaysMatchRule(), _AlwaysMatchRule()]))
 
 
 # --- end-to-end enforcement ------------------------------------------------
