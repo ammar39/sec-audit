@@ -172,6 +172,13 @@ SEC_AUDIT_ENFORCEMENT = {
         'sec_audit.rules.builtins.LoginThrottleRule',
         'sec_audit.rules.builtins.RepeatedClientErrorRule',
         'sec_audit.rules.builtins.ResourceEnumerationRule',
+        # User-authored detector reading the custom-event model from history.
+        'fintech.audit_events.TransferVelocityRule',
+    ],
+    # User-authored EventSchema: derives the 'account_id' scope, persists 'amount'
+    # to history, and redacts 'destination_alias' in the history store.
+    'schema_specs': [
+        'fintech.audit_events.TRANSFER_SCHEMA',
     ],
 }
 

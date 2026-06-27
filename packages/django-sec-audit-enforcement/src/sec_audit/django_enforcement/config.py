@@ -56,6 +56,7 @@ _KNOWN_KEYS = {
     'block_rules',
     'rules',
     'trigger_specs',
+    'schema_specs',
 }
 
 
@@ -82,6 +83,11 @@ class DjangoEnforcementConfig:
     # As with ``rules``, only the ``"module.attr"`` string shape is validated here;
     # the import/build runs eagerly at ``ready()`` (via ``_build_trigger_registry``).
     trigger_specs: tuple[object, ...] = ()
+    # User-registered EventSchemas: import-path strings (``"module.attr"``) to an
+    # ``EventSchema`` (or a factory returning one), or already-built ``EventSchema``
+    # objects. Only the ``"module.attr"`` shape is validated here; the import/build
+    # runs eagerly at ``ready()`` (via ``_build_schema_registry``).
+    schema_specs: tuple[object, ...] = ()
     block_precedence: tuple[str, ...] = ()
     status_code: int = 429
     message: str = DEFAULT_BLOCK_MESSAGE
@@ -155,6 +161,9 @@ class DjangoEnforcementConfig:
             rules=cv.importable_tuple('rules', raw.get('rules', ())),
             trigger_specs=cv.importable_tuple(
                 'trigger_specs', raw.get('trigger_specs', ())
+            ),
+            schema_specs=cv.importable_tuple(
+                'schema_specs', raw.get('schema_specs', ())
             ),
             block_precedence=cv.str_tuple(
                 'block_precedence', raw.get('block_precedence', ())

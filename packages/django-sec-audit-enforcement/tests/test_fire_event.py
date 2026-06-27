@@ -5,11 +5,14 @@ end-to-end (match -> audit.enforcement.* -> block), the reserved-namespace guard
 the unknown-trigger error, and re-entrancy (the engine skip-list breaks any loop).
 """
 
+import logging
+
 import pytest
 from django.test import override_settings
 from sec_audit.core.exceptions import AuditConfigurationError
 from sec_audit.enforcement.blocks import BlockScope
 from sec_audit.rules.base import Rule, make_match
+from sec_audit.rules.schema import EventSchema, FieldRole, SchemaField
 from sec_audit.rules.triggers import MappingEventBuilder, Trigger
 
 from sec_audit.django_enforcement import fire_event
@@ -188,4 +191,47 @@ def test_emitted_enforcement_event_is_skip_listed(install_runtime):
             {'event_type': 'audit.enforcement.alert', 'srcip': '203.0.113.11'}
         )
         == []
+    )
+
+
+# --- unmapped-key warning (fail loud, schema-only) -------------------------
+
+
+_WARN_SCHEMA = EventSchema(
+    CUSTOM_EVENT,
+    (
+        SchemaField('merchant_id', frozenset({FieldRole.SCOPE})),
+        SchemaField('amount', frozenset({FieldRole.MODEL})),
+    ),
+)
+
+
+@pytest.mark.django_db
+def test_unmapped_key_warns_under_registered_schema(install_runtime, caplog):
+    install_runtime(_config(rules=[_PaymentRule()], schema_specs=[_WARN_SCHEMA]))
+    with caplog.at_level(logging.WARNING, logger='sec_audit.enforcement'):
+        fire_event(CUSTOM_EVENT, {'merchnat_id': 'm-1', 'srcip': '203.0.113.5'})
+    assert any('merchnat_id' in r.message for r in caplog.records)
+
+
+@pytest.mark.django_db
+def test_no_warning_for_declared_or_scope_keys(install_runtime, caplog):
+    install_runtime(_config(rules=[_PaymentRule()], schema_specs=[_WARN_SCHEMA]))
+    with caplog.at_level(logging.WARNING, logger='sec_audit.enforcement'):
+        fire_event(
+            CUSTOM_EVENT,
+            {'merchant_id': 'm-1', 'amount': 5, 'srcip': '203.0.113.5'},
+        )
+    assert not any(
+        'match no declared schema field' in r.message for r in caplog.records
+    )
+
+
+@pytest.mark.django_db
+def test_no_warning_when_no_schema_registered(install_runtime, caplog):
+    install_runtime(_config(rules=[_PaymentRule()]))  # no schema_specs
+    with caplog.at_level(logging.WARNING, logger='sec_audit.enforcement'):
+        fire_event(CUSTOM_EVENT, {'anything_goes': 1, 'srcip': '203.0.113.5'})
+    assert not any(
+        'match no declared schema field' in r.message for r in caplog.records
     )

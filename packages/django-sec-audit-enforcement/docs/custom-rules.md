@@ -43,6 +43,10 @@ context = ContextRequirements(
 )
 ```
 
+To correlate on a **custom** dimension and accumulate your own fields (counts,
+sums, last-seen) keyed on it, declare an `EventSchema` for the event type and read
+the model from history — see [Custom events](custom-events.md).
+
 ## A worked example
 
 ```python

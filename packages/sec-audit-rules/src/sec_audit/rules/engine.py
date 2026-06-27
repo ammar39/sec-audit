@@ -3,7 +3,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from sec_audit.rules.schema import EventSchemaRegistry
 
 from sec_audit.core.clock import utc_timestamp
 from sec_audit.core.json import json_safe
@@ -63,6 +66,7 @@ class RuleEngine:
         result_sinks: Sequence[object] = (),
         history_extractors: Sequence[HistoryScopeExtractor] | None = None,
         fail_open: bool = True,
+        schemas: EventSchemaRegistry | None = None,
     ) -> None:
         if counters is None:
             raise ValueError('RuleEngine requires an explicit CounterStore.')
@@ -76,6 +80,10 @@ class RuleEngine:
             history_extractors or build_history_scope_extractors()
         )
         self.fail_open = bool(fail_open)
+        # Per-event-type EventSchema registry. None → today's whitelist-only
+        # history projection (full back-compat); a registered schema EXTENDS the
+        # whitelist with declared MODEL/SCOPE fields and redacts SENSITIVE ones.
+        self.schemas = schemas
 
     def evaluate(
         self,
@@ -118,7 +126,12 @@ class RuleEngine:
 
     def _build_evaluation_context(self, rule_event: RuleEvent) -> _EvaluationContext:
         now = self.clock()
-        summary = dict(create_history_summary(rule_event))
+        schema = (
+            self.schemas.get(rule_event.event_type)
+            if self.schemas is not None
+            else None
+        )
+        summary = dict(create_history_summary(rule_event, schema=schema))
         scope_keys = extract_scope_keys(summary, self.history_extractors)
         return _EvaluationContext(
             rule_event=rule_event,

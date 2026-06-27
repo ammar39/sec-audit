@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from django.conf import settings
 
@@ -27,6 +27,7 @@ from sec_audit.rules.base import Rule, RuleMatch
 from sec_audit.rules.config import RulesAuditConfig
 from sec_audit.rules.engine import RuleEngine
 from sec_audit.rules.events import RuleEvent
+from sec_audit.rules.schema import EventSchemaRegistry
 from sec_audit.rules.scopes import (
     ScopeDefinition,
     ScopeRegistry,
@@ -54,6 +55,11 @@ logger = logging.getLogger('sec_audit.enforcement')
 
 _STATE_KEY_PREFIX = 'sec_audit'
 
+# No EventSchemas ship by default: existing events keep whitelist-only history
+# behavior, and the schema layer is inert until a deployment registers one via
+# ``SEC_AUDIT_ENFORCEMENT['schema_specs']``. Injected like ``DEFAULT_TRIGGERS``.
+DEFAULT_SCHEMAS: tuple[object, ...] = ()
+
 _config: DjangoEnforcementConfig | None = None
 _runtime: 'DjangoEnforcementRuntime | None' = None
 _lock = threading.Lock()
@@ -69,6 +75,11 @@ class DjangoEnforcementRuntime:
     emitter: EnforcementEmitter
     schema_version: str
     trigger_registry: TriggerRegistry
+    # Defaults to an empty registry so manual constructions (tests, helpers) need
+    # not pass it; ``_build_runtime`` always supplies the resolved one.
+    schema_registry: EventSchemaRegistry = field(
+        default_factory=lambda: EventSchemaRegistry(())
+    )
 
     def handle_event(self, event) -> list[RuleMatch]:
         """Egress detection + application for one recorded event (all types).
@@ -108,8 +119,19 @@ def setup_enforcement() -> None:
         # middleware/consumer (which must stay fail-open for genuine Redis/store
         # outages). Neither touches Redis, so migrate/check/collectstatic still work
         # when Redis is down; results are discarded — _build_runtime re-resolves.
-        _all_rules(config)
+        if not _all_rules(config):
+            # Fail loud (the W008 system check covers `manage.py check`; this covers
+            # a plain runserver boot): enabled enforcement with no rules can never
+            # match, so nothing is ever detected or blocked.
+            logger.warning(
+                'Enforcement is enabled but no rules are registered '
+                "(SEC_AUDIT_ENFORCEMENT['rules'] is empty); the engine runs but no "
+                'rule can ever match, so nothing is detected or blocked.'
+            )
         _build_trigger_registry(config)
+        # Resolve schemas now too so a bad schema_specs entry (or a duplicate
+        # event_type / scope name across schemas) fails the boot, not the request.
+        _build_schema_registry(config)
         from sec_audit.django_enforcement.consumer import consume
 
         register_rule_event_consumer(consume)
@@ -149,7 +171,8 @@ def reset_enforcement_runtime() -> None:
 def _build_runtime(config: DjangoEnforcementConfig) -> 'DjangoEnforcementRuntime':
     log_runtime = get_runtime()
     schema_version = log_runtime.config.logging.schema_version
-    registry = _build_registry(config)
+    schema_registry = _build_schema_registry(config)
+    registry = _build_registry(config, schema_registry)
     counters, history = _build_detection_stores(config)
     block_store = _build_block_store(config)
     emitter = EnforcementEmitter(log_runtime.record)
@@ -173,6 +196,7 @@ def _build_runtime(config: DjangoEnforcementConfig) -> 'DjangoEnforcementRuntime
         history_extractors=registry.extractors,
         result_sinks=(enforcer,) if config.apply_via_sink else (),
         fail_open=config.fail_open,
+        schemas=schema_registry,
     )
     return DjangoEnforcementRuntime(
         config=config,
@@ -183,11 +207,20 @@ def _build_runtime(config: DjangoEnforcementConfig) -> 'DjangoEnforcementRuntime
         emitter=emitter,
         schema_version=schema_version,
         trigger_registry=_build_trigger_registry(config),
+        schema_registry=schema_registry,
     )
 
 
-def _build_registry(config: DjangoEnforcementConfig) -> ScopeRegistry:
-    registry = ScopeRegistry.from_specs(config.scope_specs)
+def _build_registry(
+    config: DjangoEnforcementConfig, schema_registry: EventSchemaRegistry
+) -> ScopeRegistry:
+    # Schema-derived scopes are appended as additional specs (ScopeRegistry has no
+    # injected-defaults hook; its built-ins are hardcoded in the rules layer). The
+    # registry rejects a name colliding with a built-in, and EventSchemaRegistry
+    # already rejected cross-schema scope duplicates — so this composes safely.
+    registry = ScopeRegistry.from_specs(
+        [*config.scope_specs, *schema_registry.scope_definitions()]
+    )
     if not config.block_precedence:
         return registry
     # Reorder block-precedence: named scopes first (in the given order), the rest
@@ -210,6 +243,17 @@ def _build_trigger_registry(config: DjangoEnforcementConfig) -> TriggerRegistry:
     set are rejected fail-fast by ``TriggerRegistry``.
     """
     return TriggerRegistry.from_specs(config.trigger_specs, defaults=DEFAULT_TRIGGERS)
+
+
+def _build_schema_registry(config: DjangoEnforcementConfig) -> EventSchemaRegistry:
+    """Built-in ``DEFAULT_SCHEMAS`` (none) plus user-registered EventSchemas.
+
+    ``config.schema_specs`` entries are dotted ``"module.attr"`` paths (imported
+    here, eagerly at ``ready()`` — settings-parse only validated the shape) or
+    already-built ``EventSchema`` objects/factories. Duplicate event_types or
+    cross-schema scope-name collisions are rejected fail-fast by the registry.
+    """
+    return EventSchemaRegistry.from_specs(config.schema_specs, defaults=DEFAULT_SCHEMAS)
 
 
 def _build_detection_stores(config: DjangoEnforcementConfig):

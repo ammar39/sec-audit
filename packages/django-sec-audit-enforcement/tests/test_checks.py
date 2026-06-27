@@ -113,3 +113,24 @@ def test_eviction_policy_silent_when_config_disabled(monkeypatch):
 @override_settings(SEC_AUDIT_ENFORCEMENT={'enabled': True})
 def test_eviction_policy_skipped_without_redis_url():
     assert checks.check_redis_eviction_policy(None) == []
+
+
+# --- W008: enabled enforcement with no rules is a silent no-op ---------------
+
+
+@override_settings(SEC_AUDIT_ENFORCEMENT={'enabled': True, 'rules': ()})
+def test_no_rules_warns_when_enabled():
+    ids = {w.id for w in checks.check_enforcement_rules_registered(None)}
+    assert 'sec_audit_enforcement.W008' in ids
+
+
+@override_settings(
+    SEC_AUDIT_ENFORCEMENT={'enabled': True, 'rules': ['myapp.rules.SomeRule']}
+)
+def test_no_rules_silent_when_rules_present():
+    assert checks.check_enforcement_rules_registered(None) == []
+
+
+@override_settings(SEC_AUDIT_ENFORCEMENT={'enabled': False, 'rules': ()})
+def test_no_rules_silent_when_disabled():
+    assert checks.check_enforcement_rules_registered(None) == []

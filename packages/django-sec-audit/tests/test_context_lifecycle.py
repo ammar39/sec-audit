@@ -91,6 +91,36 @@ def test_context_is_active_during_get_response():
     assert seen['path'] == '/api/thing/'
 
 
+def test_route_is_carried_in_context():
+    # Route is resolved before get_response, so the middleware stashes it in the
+    # AuditContext (route pattern + name) for ambient consumers like fire_event.
+    clear_context()
+    previous = _set_runtime(_OK)
+    seen = {}
+
+    class _Match:
+        view_name = 'fintech:transfer'
+        route = 'api/transfer/'
+
+    req = _Request(path='/api/transfer/')
+    req.resolver_match = _Match()
+
+    def view(request):
+        ctx = get_context()
+        seen['route'] = ctx.route if ctx else None
+        seen['route_name'] = ctx.route_name if ctx else None
+        return _Response()
+
+    try:
+        AuditMiddleware(view)(req)
+    finally:
+        _restore_runtime(previous)
+        clear_context()
+
+    assert seen['route'] == '/api/transfer/'
+    assert seen['route_name'] == 'fintech:transfer'
+
+
 def test_context_restored_to_none_after_successful_response():
     clear_context()
     previous = _set_runtime(_OK)

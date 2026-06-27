@@ -25,6 +25,12 @@ from sec_audit.rules.history import (
     build_history_scope_extractors,
     extract_scope_keys,
 )
+from sec_audit.rules.schema import (
+    EventSchema,
+    EventSchemaRegistry,
+    FieldRole,
+    SchemaField,
+)
 from sec_audit.rules.triggers import (
     EventContextBuilder,
     MappingEventBuilder,
@@ -60,4 +66,8 @@ __all__ = [
     'MappingEventBuilder',
     'Trigger',
     'TriggerRegistry',
+    'EventSchema',
+    'EventSchemaRegistry',
+    'FieldRole',
+    'SchemaField',
 ]

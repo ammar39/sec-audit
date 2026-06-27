@@ -18,6 +18,7 @@ every enforcement decision as OTel JSONL on the existing `sec_audit.audit` logge
 | [Configuration](configuration.md) | Every `SEC_AUDIT_ENFORCEMENT` key, defaults, and `rule_actions`/`block_rules` |
 | [Architecture](architecture.md) | The ingress check vs. egress detection paths, the tiered store, fail modes |
 | [Custom rules](custom-rules.md) | Write your own `Rule` and register it via settings |
+| [Custom events](custom-events.md) | Fire your own events via `fire_event`, declare an `EventSchema`, build a correlated model safely |
 | [Enforcement events](events.md) | The four `audit.enforcement.*` events and their attributes |
 | [Operations](operations.md) | Deploy tiers, system checks, the `PermanentBlock` model + admin, revocation, monitoring |
 
