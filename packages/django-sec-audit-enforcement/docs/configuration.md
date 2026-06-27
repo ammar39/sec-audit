@@ -11,6 +11,7 @@ SEC_AUDIT_ENFORCEMENT = {
     'enabled': True,
     'redis_url': 'redis://localhost:6379/0',
     'fail_closed_paths': [r'^/api/transfer'],
+    'rules': ['sec_audit.rules.builtins.BruteForceLoginRule'],  # nothing runs unless listed
     'rule_actions': {
         'brute_force_login': {'action': 'temp_block', 'scopes': ['ip']},
     },
@@ -38,7 +39,7 @@ SEC_AUDIT_ENFORCEMENT = {
 | `block_precedence` | list[str] | `()` | Order in which scopes are checked for an active block (named scopes first, in this order, then the rest). |
 | `rule_actions` | dict | see below | Map a rule **name** → the action to take when it fires. Merged over the scope-safe defaults. |
 | `block_rules` | dict | `{}` | Map a rule **name** → temp-block TTL (seconds). |
-| `rules` | list | `()` | Register custom `Rule` detectors (dotted paths or instances), appended to the built-ins. See [Custom rules](custom-rules.md). |
+| `rules` | list | `()` | The rules to run (dotted paths or instances) — built-in (`sec_audit.rules.builtins.*`) and/or your own. Nothing runs unless listed; the set is exactly what you declare. See [Custom rules](custom-rules.md). |
 
 ## `rule_actions`
 
@@ -55,7 +56,9 @@ name to `{'action': ..., 'scopes': [...]}`:
 `scopes` is the list of block dimensions to apply (`ip`, `user`, `session`, …).
 
 Your map is **merged over** the scope-safe defaults, so you only specify what you
-want to change:
+want to change. These defaults exist for every shipped built-in name but apply
+**only when that rule is registered** in `rules` — an entry for an unregistered
+rule is inert:
 
 ```python
 DEFAULT_RULE_ACTIONS = {

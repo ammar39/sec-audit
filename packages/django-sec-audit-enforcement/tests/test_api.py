@@ -9,6 +9,7 @@ from sec_audit.django_enforcement import (
     is_user_blocked,
     list_active_blocks,
     list_blocked_users,
+    list_temp_blocks,
     unblock_subject,
     unblock_user,
 )
@@ -61,8 +62,23 @@ def test_temp_block_via_subject_is_redis_only(captured):
     assert applied[-1].attributes['enforcement.ttl'] == 600
 
     assert is_blocked('ip', '1.2.3.4') is not None
-    # Temp (Redis-only) blocks are intentionally not enumerated.
+    # Temp (Redis-only) blocks are not in the durable list...
     assert list_active_blocks(scope_type='ip') == []
+    # ...but are enumerable via list_temp_blocks for operator tooling.
+    temp = list_temp_blocks()
+    assert {(e.scope.scope_type, e.scope.scope_value) for e in temp} == {
+        ('ip', '1.2.3.4')
+    }
+
+
+def test_list_temp_blocks_excludes_permanent_and_filters(captured):
+    block_user(42, reason='perm')  # permanent -> not a temp block
+    block_subject('ip', '1.2.3.4', ttl=600)  # temp
+    block_subject('session', 'sess-xyz', ttl=600)  # temp
+    all_temp = {(e.scope.scope_type, e.scope.scope_value) for e in list_temp_blocks()}
+    assert all_temp == {('ip', '1.2.3.4'), ('session', 'sess-xyz')}
+    ips = {e.scope.scope_value for e in list_temp_blocks(scope_type='ip')}
+    assert ips == {'1.2.3.4'}
 
 
 def test_unblock_missing_returns_zero_and_emits_nothing(captured):

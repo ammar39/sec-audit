@@ -16,11 +16,14 @@ from sec_audit.core.exceptions import AuditConfigurationError
 from sec_audit.enforcement.blocks import DEFAULT_BLOCK_MESSAGE
 from sec_audit.enforcement.config import EnforcementAuditConfig
 
-# Scope-safe defaults: temp blocks key on ``ip``; permanent (persist) blocks key
-# on ``user``/``session`` — NEVER ``ip`` — because an ip-scoped permanent ban on
-# shared egress (corporate NAT, mobile carrier) locks out many users. The block
-# scope comes from ``action.scopes`` independent of temp/permanent, so this
-# property must be encoded in the mapping, not left to operator discipline.
+# Scope-safe default *actions* for the shipped built-in rule names. These apply
+# only when the corresponding rule is registered via ``rules`` — no rule is
+# auto-loaded, so an entry here is inert until its rule actually runs. Temp
+# blocks key on ``ip``; permanent (persist) blocks key on ``user``/``session`` —
+# NEVER ``ip`` — because an ip-scoped permanent ban on shared egress (corporate
+# NAT, mobile carrier) locks out many users. The block scope comes from
+# ``action.scopes`` independent of temp/permanent, so this property must be
+# encoded in the mapping, not left to operator discipline.
 DEFAULT_RULE_ACTIONS: dict[str, object] = {
     'brute_force_login': {'action': 'temp_block', 'scopes': ['ip']},
     'login_throttle': {'action': 'temp_block', 'scopes': ['ip']},

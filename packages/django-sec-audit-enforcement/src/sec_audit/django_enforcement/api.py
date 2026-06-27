@@ -39,6 +39,7 @@ __all__ = [
     'unblock_subject',
     'is_blocked',
     'list_active_blocks',
+    'list_temp_blocks',
     'block_user',
     'unblock_user',
     'is_user_blocked',
@@ -149,6 +150,18 @@ def list_active_blocks(*, scope_type: str | None = None) -> list[BlockEntry]:
     runtime = get_enforcement_runtime()
     store = runtime.block_store
     entries = list(store.active_blocks()) if hasattr(store, 'active_blocks') else []
+    if scope_type is not None:
+        entries = [e for e in entries if e.scope.scope_type == scope_type]
+    return entries
+
+
+def list_temp_blocks(*, scope_type: str | None = None) -> list[BlockEntry]:
+    """List active *temporary* (Redis-only, TTL-backed) blocks, optionally filtered."""
+    runtime = get_enforcement_runtime()
+    store = runtime.block_store
+    entries = (
+        list(store.active_temp_blocks()) if hasattr(store, 'active_temp_blocks') else []
+    )
     if scope_type is not None:
         entries = [e for e in entries if e.scope.scope_type == scope_type]
     return entries

@@ -59,9 +59,25 @@ class MemoryBlockStore:
             return 1 if self._blocks.pop(self._key(scope), None) is not None else 0
 
     def active_blocks(self) -> Iterable[BlockEntry]:
+        # Durable (permanent) blocks only — those written without a ttl, so
+        # ``expires_at is None``. Matches TieredBlockStore (whose Postgres tier
+        # holds permanent rows only); temp blocks come from active_temp_blocks.
         with self._lock:
             return [
-                entry for entry in self._blocks.values() if not self._expired(entry)
+                entry
+                for entry in self._blocks.values()
+                if entry.expires_at is None and not self._expired(entry)
+            ]
+
+    def active_temp_blocks(self) -> list[BlockEntry]:
+        # Temp blocks are the ones written with a ttl (``expires_at`` set);
+        # permanent blocks have no expiry. Mirrors TieredBlockStore for the
+        # block-manager UI on memory-only (demo/test) deployments.
+        with self._lock:
+            return [
+                entry
+                for entry in self._blocks.values()
+                if entry.expires_at is not None and not self._expired(entry)
             ]
 
     def get_active(self, scope: BlockScope) -> BlockEntry | None:

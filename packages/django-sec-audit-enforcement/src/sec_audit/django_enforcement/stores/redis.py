@@ -115,6 +115,31 @@ class RedisBlockStore:
         except RedisError as exc:
             raise BlockStoreError('Redis block delete failed.') from exc
 
+    def scan_blocks(self) -> list[BlockEntry]:
+        """Enumerate every live block key (temp + cached-permanent) for operator
+        tooling. Read-only, non-blocking SCAN (never ``KEYS``).
+
+        This layer can't tell a temp block from a write-through permanent cache
+        entry — both are TTL keys under the same scheme — so it returns all of
+        them; the caller (``TieredBlockStore``) subtracts the permanent set. A
+        malformed entry is skipped so one bad key can't break the listing. The
+        warm sentinel (``…:blocks:warm``) does not match ``…:block:*``.
+        """
+        pattern = f'{self.key_prefix}:block:*'
+        entries: list[BlockEntry] = []
+        try:
+            for key in self._client.scan_iter(match=pattern, count=500):
+                payload = self._client.get(key)
+                if not payload:
+                    continue
+                try:
+                    entries.append(entry_from_json(_text(payload)))
+                except (ValueError, KeyError, TypeError):
+                    continue
+        except RedisError as exc:
+            raise BlockStoreError('Redis block scan failed.') from exc
+        return entries
+
     # --- warm-sentinel helpers (used by TieredBlockStore) ---
     #
     # The warm key holds a JSON payload describing the active permanent bans

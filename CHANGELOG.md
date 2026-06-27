@@ -11,7 +11,32 @@ breaking changes may land in minor releases).
 
 ## [Unreleased]
 
-Code-review follow-ups across `sec-audit-rules` and `django-sec-audit-enforcement`.
+_Nothing yet._
+
+## [2026-06-27]
+
+Released: **`sec-audit-rules` 0.1.0a4**, **`django-sec-audit` 0.1.0a6**,
+**`django-sec-audit-enforcement` 0.1.0a4** (`sec-audit` unchanged at `0.1.0a1`,
+`sec-audit-logging` unchanged at `0.1.0a2`). Built-in enforcement detectors are
+now **opt-in** (breaking — see Changed), plus admin temp-block management and the
+prior code-review follow-ups across `sec-audit-rules` and
+`django-sec-audit-enforcement`.
+
+### Added
+- **`django-sec-audit-enforcement` — manage temp blocks from the admin block
+  manager.** The block-manager page now lists, creates, edits, and revokes
+  temporary (Redis-only, TTL-backed) blocks alongside permanent ones.
+  `RedisBlockStore.scan_blocks()` enumerates live block keys via a non-blocking
+  `SCAN`; `TieredBlockStore.active_temp_blocks()` returns Redis blocks minus the
+  permanent membership; `MemoryBlockStore.active_blocks()` is now permanent-only
+  so the two surfaces stay disjoint on every backend. New
+  `list_temp_blocks(scope_type=…)` API (re-exported), called on demand only —
+  never on the request path.
+- **`django-sec-audit` — `read_audit_session_id(request)` helper** (`sessions.py`):
+  a read-only counterpart to `get_audit_session_id` that never mints or persists an
+  id. The enforcement ingress session-scope check uses it so a session block is
+  looked up under the same audit-session id that egress emits, never
+  `request.session.session_key`.
 
 ### Security
 - **`django-sec-audit-enforcement`** — admin block **revocation now requires the
@@ -24,6 +49,15 @@ Code-review follow-ups across `sec-audit-rules` and `django-sec-audit-enforcemen
   the revoke action and the change view.
 
 ### Changed
+- **`django-sec-audit-enforcement` — built-in detectors are now opt-in
+  (BREAKING).** The built-in detectors (`brute_force_login`, `login_throttle`,
+  `repeated_client_error`, `resource_enumeration`) were auto-loaded and prepended
+  to every deployment's rule set with no way to disable them; nothing runs now
+  unless registered in `SEC_AUDIT_ENFORCEMENT['rules']`. `DEFAULT_RULE_ACTIONS` is
+  retained but inert until the named rule is registered, and the former built-in
+  names are reusable. **Back-compat:** deployments relying on the auto-loaded
+  built-ins must now list them in `rules` (e.g.
+  `'sec_audit.rules.builtins.BruteForceLoginRule'`).
 - **`sec-audit-rules`** — a bare `persist_block` decision (a custom rule returning
   `decision='persist_block'` with no matching `rule_actions` entry) now defaults its
   scopes to `('user', 'session')` instead of `('ip',)`, and logs a warning. This
@@ -139,6 +173,7 @@ Initial alpha release of the four coordinated distributions.
 - **django-sec-audit** — Django integration: HTTP request/response middleware, auth-signal
   logging, django-auditlog model forwarding (`[model]`), and DRF metadata capture (`[drf]`).
 
-[Unreleased]: https://github.com/ammar39/sec-audit/compare/sec-audit-rules-v0.1.0a3...HEAD
+[Unreleased]: https://github.com/ammar39/sec-audit/compare/sec-audit-rules-v0.1.0a4...HEAD
+[2026-06-27]: https://github.com/ammar39/sec-audit/compare/sec-audit-rules-v0.1.0a3...sec-audit-rules-v0.1.0a4
 [2026-06-25]: https://github.com/ammar39/sec-audit/compare/v0.1.0a1...sec-audit-rules-v0.1.0a3
 [0.1.0a1]: https://github.com/ammar39/sec-audit/releases/tag/v0.1.0a1

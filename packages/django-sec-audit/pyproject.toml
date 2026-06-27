@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "django-sec-audit"
-version = "0.1.0a5"
+version = "0.1.0a6"
 description = "Structured security and audit logging for Django with OpenTelemetry LogRecord-shaped JSONL output"
 readme = "README.md"
 license = "MIT"

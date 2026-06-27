@@ -33,23 +33,28 @@ Full docs live in [`docs/`](docs/):
 - [Enforcement events](docs/events.md) — the four `audit.enforcement.*` events
 - [Operations](docs/operations.md) — deploy tiers, system checks, the `PermanentBlock` model, revocation
 
-## Custom rules
+## Rules
 
-The built-in rules (`brute_force_login`, `login_throttle`,
-`repeated_client_error`, and `resource_enumeration` — alert-only, and active only
-when a history store such as Redis is configured) can be extended with your own.
-Subclass `sec_audit.rules.Rule`, then register it via
-`SEC_AUDIT_ENFORCEMENT['rules']` (appended to the built-ins):
+Nothing runs unless you register it. `SEC_AUDIT_ENFORCEMENT['rules']` is the
+single registration surface: list the shipped built-ins
+(`sec_audit.rules.builtins.*` — `brute_force_login`, `login_throttle`,
+`repeated_client_error`, and `resource_enumeration`, the last alert-only and
+active only when a history store such as Redis is configured) and/or your own
+`sec_audit.rules.Rule` subclasses. The registered set is exactly what you declare:
 
 ```python
 SEC_AUDIT_ENFORCEMENT = {
     'enabled': True,
-    'rules': ['myapp.security.rules.GeoVelocityRule'],
+    'rules': [
+        'sec_audit.rules.builtins.BruteForceLoginRule',   # a shipped built-in
+        'myapp.security.rules.GeoVelocityRule',           # your own
+    ],
     # observe-only until you map the rule's name to an action:
     'rule_actions': {'geo_velocity': {'action': 'temp_block', 'scopes': ['ip']}},
 }
 ```
 
-A custom rule observes (detect + log, no block) until it has a `rule_actions`
-entry, and runs on the egress path unless it sets `safe_for_enforcement = True`.
-See the full [Custom rules guide](docs/custom-rules.md).
+A built-in carries a scope-safe default action (it blocks once registered). A
+custom rule observes (detect + log, no block) until it has a `rule_actions` entry,
+and runs on the egress path unless it sets `safe_for_enforcement = True`. See the
+full [Custom rules guide](docs/custom-rules.md).

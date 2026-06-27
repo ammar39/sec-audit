@@ -70,6 +70,7 @@ schema fields).
 from sec_audit.django_enforcement import (
     block_user, unblock_user, is_user_blocked, list_blocked_users,
     block_subject, unblock_subject, is_blocked, list_active_blocks,
+    list_temp_blocks,
 )
 
 block_user(42, reason='fraud review', actor='you@example.com')   # permanent user ban
@@ -90,7 +91,9 @@ source-of-truth + Redis write-through); a positive `ttl` writes a temp block
 `EnforcementMiddleware` is installed — the utils are available regardless.
 
 `list_active_blocks` / `list_blocked_users` enumerate **durable (permanent)**
-blocks; Redis-only temp blocks are not listed (they auto-expire).
+blocks. `list_temp_blocks(scope_type=...)` enumerates the **temporary**
+(Redis-only, TTL-backed) blocks for operator tooling — it costs a Redis `SCAN`,
+so call it on demand (e.g. an admin page), never on the request path.
 
 ## Admin
 
@@ -120,14 +123,25 @@ admin page (`/admin/sec_audit_enforcement/permanentblock/manage/`) that exposes 
 - **TTL** — seconds for a temporary (Redis-only) block; leave blank for a permanent
   one (Postgres source-of-truth + Redis write-through).
 - Optional **reason**, **status code**, and **message** overrides.
-- **Block** / **Unblock** buttons, plus a table of active blocks each with an inline
-  **Unblock**.
+- **Block** / **Unblock** buttons, plus two tables — **Active blocks** (durable)
+  and **Active temp blocks** (Redis-only, with their expiry) — each row with an
+  inline **Edit** and **Unblock**.
 
 The page is gated by the `add_permanentblock` permission (on top of admin
 staff/login). Block/unblock route through `block_subject` / `unblock_subject`, so the
-cache and `audit.enforcement.*` events stay consistent. The active-blocks table lists
-durable (permanent) blocks; temporary Redis-only blocks auto-expire and may not appear
-there on a tiered deployment.
+cache and `audit.enforcement.*` events stay consistent. The **Active blocks** table
+lists durable (permanent) blocks (via `list_active_blocks`); the **Active temp blocks**
+table lists the Redis-only TTL blocks (via `list_temp_blocks`, a `SCAN` run only when
+the page loads) and shows when each expires.
+
+- **Add** a temp block from the form: fill in a positive **TTL** (blank = permanent).
+- **Edit** a temp block: the row's **Edit** button prefills the form (scope, remaining
+  TTL, reason, status/message); adjust and re-block to **overwrite** it (re-blocking the
+  same scope replaces the entry — there is no separate edit endpoint).
+- **Unblock** a temp block lifts it immediately rather than waiting for its TTL.
+
+If Redis is unavailable the temp table shows a notice and the permanent surface still
+renders.
 
 ### Block users from the admin
 

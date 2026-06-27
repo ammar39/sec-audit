@@ -52,15 +52,27 @@ python manage.py migrate sec_audit_enforcement
 
 ## 5. Enable enforcement
 
-The master switch is **off by default**. Turn it on and point it at Redis:
+The master switch is **off by default**. Turn it on, point it at Redis, and
+**register the rules you want** — no detectors run unless you list them:
 
 ```python
 SEC_AUDIT_ENFORCEMENT = {
     'enabled': True,
     'redis_url': 'redis://localhost:6379/0',
     # permanent_tier_enabled defaults to True -> permanent bans go to Postgres
+    'rules': [
+        # Register the built-ins you want (or your own — see Custom rules).
+        'sec_audit.rules.builtins.BruteForceLoginRule',
+        'sec_audit.rules.builtins.LoginThrottleRule',
+        'sec_audit.rules.builtins.RepeatedClientErrorRule',
+    ],
 }
 ```
+
+Nothing is forced on you: with `rules` empty, enforcement still honours blocks
+you create manually or via the admin, but no rule writes new ones. Each rule you
+register is wired to a scope-safe default action (see the table below) and can be
+retuned via [`rule_actions`](configuration.md#rule_actions).
 
 Without `redis_url` the engine and block store fall back to **per-process
 in-memory** stores. That is fine for a single-process dev server or the demo,
@@ -77,7 +89,7 @@ at request time. See the full [Configuration reference](configuration.md).
 python manage.py check          # should report no E001/E002 errors
 ```
 
-Drive the default `brute_force_login` rule by failing auth repeatedly from one
+Drive the registered `brute_force_login` rule by failing auth repeatedly from one
 IP, then confirm the IP is blocked:
 
 ```python
@@ -94,9 +106,10 @@ A blocked request returns the configured status (default **429**) with the
 configured message, and emits an `audit.enforcement.blocked` event on the
 `sec_audit.audit` logger (see [Enforcement events](events.md)).
 
-## What's enabled out of the box
+## Built-in rules you can register
 
-Three built-in rules run with scope-safe default actions:
+The package ships these detectors. None run until you list them in `rules`; once
+registered, each is wired to a scope-safe default action:
 
 | Rule | Fires on | Default action |
 |------|----------|----------------|
@@ -104,5 +117,6 @@ Three built-in rules run with scope-safe default actions:
 | `login_throttle` | login request rate (ingress fast path) | temp block on `ip` |
 | `repeated_client_error` | repeated 4xx from one source | temp block on `ip` |
 
-To add your own detectors, see [Custom rules](custom-rules.md). To change what a
-rule does when it fires, see [`rule_actions`](configuration.md#rule_actions).
+Register them by dotted path under `sec_audit.rules.builtins` (see the example in
+step 5). To add your own detectors, see [Custom rules](custom-rules.md). To change
+what a rule does when it fires, see [`rule_actions`](configuration.md#rule_actions).

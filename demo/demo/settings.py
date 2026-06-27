@@ -149,14 +149,30 @@ SEC_AUDIT = {
     },
 }
 
-# Enforcement: enabled with the per-process in-memory store (no Redis in the
-# demo — fine for a single-process dev server; `manage.py check` warns W004).
-# The PermanentBlock admin (create / revoke / list, under /admin/) is registered
-# by the enforcement app. Without the Redis+Postgres tier, blocks live in memory
-# and the admin persists its own durable PermanentBlock rows. See
-# packages/django-sec-audit-enforcement/docs/operations.md.
+# Enforcement: enabled with the tiered store (Redis for temp blocks + detection
+# state, SQLite via the Postgres tier for durable permanent blocks). Redis lets
+# block state survive across processes, so blocks seeded by `manage.py
+# seed_fintech_demo` / `seed_demo_blocks` show up in the running admin and
+# temp-block management (create / list / edit / revoke) is fully exercisable at
+# /admin/sec_audit_enforcement/permanentblock/manage/. Point at your own Redis
+# via SEC_AUDIT_DEMO_REDIS_URL. With `fail_open` defaulting to True, a missing
+# Redis degrades gracefully (no enforcement / empty temp list) rather than
+# bricking the demo. See packages/django-sec-audit-enforcement/docs/operations.md.
+SEC_AUDIT_DEMO_REDIS_URL = os.environ.get(
+    'SEC_AUDIT_DEMO_REDIS_URL', 'redis://127.0.0.1:6379/0'
+)
+# No detectors run unless registered: `rules` opts the deployment into the rules
+# it wants (built-in or custom). The built-ins below are wired to scope-safe
+# default actions via DEFAULT_RULE_ACTIONS once registered.
 SEC_AUDIT_ENFORCEMENT = {
     'enabled': True,
+    'redis_url': SEC_AUDIT_DEMO_REDIS_URL,
+    'rules': [
+        'sec_audit.rules.builtins.BruteForceLoginRule',
+        'sec_audit.rules.builtins.LoginThrottleRule',
+        'sec_audit.rules.builtins.RepeatedClientErrorRule',
+        'sec_audit.rules.builtins.ResourceEnumerationRule',
+    ],
 }
 
 LOGGING = {
