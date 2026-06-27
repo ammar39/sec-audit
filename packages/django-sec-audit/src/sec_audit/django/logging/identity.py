@@ -101,3 +101,15 @@ def _add_user_identity(data, user) -> None:
     if username:
         actor['name'] = username
     data['actor'] = actor
+
+
+def request_base(request):
+    return _request_base(request)
+
+
+def record(message, event_type, data, level):
+    return _record(message, event_type, data, level)
+
+
+def add_user_identity(data, user) -> None:
+    return _add_user_identity(data, user)
