@@ -9,6 +9,7 @@ from sec_audit.django_enforcement.api import (
     is_user_blocked,
     list_active_blocks,
     list_blocked_users,
+    list_temp_blocks,
     unblock_subject,
     unblock_user,
 )
@@ -29,6 +30,7 @@ __all__ = [
     'is_user_blocked',
     'list_active_blocks',
     'list_blocked_users',
+    'list_temp_blocks',
     'on_enforcement_event',
     'unblock_subject',
     'unblock_user',

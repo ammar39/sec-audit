@@ -6,15 +6,18 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.urls import path
+from django.utils import timezone
 
 from sec_audit.django_enforcement.api import (
     block_subject,
     is_blocked,
     list_active_blocks,
+    list_temp_blocks,
     unblock_subject,
 )
 from sec_audit.django_enforcement.models import PermanentBlock
 from sec_audit.django_enforcement.runtime import get_enforcement_runtime
+from sec_audit.django_enforcement.stores import BlockStoreError
 
 # Fields an operator sets when manually creating a block (permanent only).
 _ADD_FIELDS = (
@@ -44,6 +47,40 @@ def _block_scope_choices() -> list[tuple[str, str]]:
     if not names:
         names = list(_DEFAULT_SCOPE_CHOICES)
     return [(name, name) for name in names]
+
+
+# Fields an Edit button may carry over to prefill the block form.
+_PREFILL_FIELDS = (
+    'scope_type',
+    'scope_value',
+    'ttl',
+    'reason',
+    'status_code',
+    'message',
+)
+
+
+def _prefill_from_get(get) -> dict | None:
+    """Build form ``initial`` from an Edit button's query params, or ``None``.
+
+    Gated on ``scope_value`` so a plain GET of the page renders an empty form.
+    """
+    if not get.get('scope_value'):
+        return None
+    return {f: get[f] for f in _PREFILL_FIELDS if get.get(f)}
+
+
+def _temp_block_rows(entries) -> list[dict]:
+    """Pair each temp ``BlockEntry`` with its remaining TTL (seconds) for display
+    and for the Edit button's prefilled TTL."""
+    now = timezone.now()
+    rows = []
+    for entry in entries:
+        remaining = None
+        if entry.expires_at is not None:
+            remaining = max(1, int((entry.expires_at - now).total_seconds()))
+        rows.append({'entry': entry, 'remaining_ttl': remaining})
+    return rows
 
 
 class BlockManagerForm(forms.Form):
@@ -205,10 +242,13 @@ class PermanentBlockAdmin(admin.ModelAdmin):
             return HttpResponseRedirect(request.path)
 
         choices = _block_scope_choices()
+        editing_subject = ''
         if request.method == 'POST':
             form = BlockManagerForm(request.POST, scope_choices=choices)
             if form.is_valid():
                 data = form.cleaned_data
+                # Re-blocking an existing scope overwrites it, so the same path
+                # serves both "add" and "edit" (the Edit buttons just prefill it).
                 block_subject(
                     data['scope_type'],
                     data['scope_value'],
@@ -225,14 +265,31 @@ class PermanentBlockAdmin(admin.ModelAdmin):
                 )
                 return HttpResponseRedirect(request.path)
         else:
-            form = BlockManagerForm(scope_choices=choices)
+            # An Edit button links here with the row's fields as query params to
+            # prefill the form; the operator adjusts and re-blocks to overwrite.
+            initial = _prefill_from_get(request.GET)
+            form = BlockManagerForm(initial=initial, scope_choices=choices)
+            if initial:
+                editing_subject = f'{initial["scope_type"]}:{initial["scope_value"]}'
+
+        # Temp blocks need a Redis SCAN; isolate a backend error so the page
+        # (and the permanent-block surface) still renders.
+        try:
+            temp_blocks = _temp_block_rows(list_temp_blocks())
+            temp_blocks_error = False
+        except BlockStoreError:
+            temp_blocks = []
+            temp_blocks_error = True
 
         context = {
             **self.admin_site.each_context(request),
             'title': 'Block manager',
             'opts': self.model._meta,
             'form': form,
+            'editing_subject': editing_subject,
             'active_blocks': list_active_blocks(),
+            'temp_blocks': temp_blocks,
+            'temp_blocks_error': temp_blocks_error,
         }
         return TemplateResponse(
             request,

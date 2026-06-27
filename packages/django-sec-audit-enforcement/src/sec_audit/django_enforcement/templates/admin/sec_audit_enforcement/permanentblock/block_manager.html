@@ -124,6 +124,7 @@
   .sa-table tbody tr:hover { background: var(--darkened-bg); }
   .sa-table form { margin: 0; }
   .sa-col-action { text-align: right; }
+  .sa-row-actions { display: inline-flex; gap: 8px; justify-content: flex-end; }
 
   .sa-chip {
     display: inline-flex; align-items: center; gap: 7px;
@@ -194,10 +195,15 @@
   </p>
 
   {# ── Create / lift a block ────────────────────────────────────────── #}
-  <div class="sa-card">
+  <div class="sa-card" id="sa-block-form">
     <div class="sa-card-head">
+      {% if editing_subject %}
+      <h2>{% trans 'Edit block' %}</h2>
+      <span class="sa-sub">{% blocktrans %}Adjust {{ editing_subject }} and re-block to overwrite it{% endblocktrans %}</span>
+      {% else %}
       <h2>{% trans 'New block' %}</h2>
       <span class="sa-sub">{% trans 'Restrict a subject from accessing the app' %}</span>
+      {% endif %}
     </div>
     <div class="sa-card-body">
       <form action="{% url 'admin:sec_audit_enforcement_permanentblock_manage' %}" method="post">
@@ -306,13 +312,84 @@
           {% endfor %}
         </tbody>
       </table>
-      <p class="sa-foot">{% trans "Only durable (permanent) blocks are listed; temporary (Redis-only) blocks auto-expire and may not appear here on a tiered deployment." %}</p>
+      <p class="sa-foot">{% trans "Durable (permanent) blocks, backed by the database. Temporary (Redis-only) blocks are listed separately below." %}</p>
     </div>
     {% else %}
     <div class="sa-empty">
       <div class="sa-empty-icon">&#10003;</div>
-      <p>{% trans 'No active blocks.' %}</p>
-      <p class="sa-muted">{% trans 'Subjects you block will appear here.' %}</p>
+      <p>{% trans 'No active permanent blocks.' %}</p>
+      <p class="sa-muted">{% trans 'Subjects you block permanently will appear here.' %}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Active temp blocks ───────────────────────────────────────────── #}
+  <div class="sa-card">
+    <div class="sa-card-head">
+      <h2>{% trans 'Active temp blocks' %}</h2>
+      <span class="sa-count">{{ temp_blocks|length }}</span>
+      <span class="sa-spacer"></span>
+    </div>
+    {% if temp_blocks_error %}
+    <div class="sa-card-body">
+      <p class="sa-foot">{% trans "Couldn’t read temporary blocks — the Redis backend is unavailable. Permanent blocks above are unaffected." %}</p>
+    </div>
+    {% elif temp_blocks %}
+    <div class="sa-card-body">
+      <table class="sa-table">
+        <thead>
+          <tr>
+            <th>{% trans 'Scope' %}</th>
+            <th>{% trans 'Subject' %}</th>
+            <th>{% trans 'Reason' %}</th>
+            <th>{% trans 'Rule' %}</th>
+            <th>{% trans 'Expires' %}</th>
+            <th class="sa-col-action"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in temp_blocks %}
+          <tr>
+            <td><span class="sa-chip sa-chip--{{ row.entry.scope.scope_type }}">{{ row.entry.scope.scope_type }}</span></td>
+            <td><span class="sa-mono">{{ row.entry.scope.scope_value }}</span></td>
+            <td class="sa-reason">{{ row.entry.reason|default:'—' }}</td>
+            <td>{% if row.entry.rule_name %}<span class="sa-rule">{{ row.entry.rule_name }}</span>{% else %}<span class="sa-muted">—</span>{% endif %}</td>
+            <td>
+              <span class="sa-pill sa-pill--temp">{% trans 'Temporary' %}</span>
+              {% if row.entry.expires_at %}<span class="sa-when">{% trans 'expires' %} {{ row.entry.expires_at|date:"M j, Y, g:i a" }}</span>{% endif %}
+            </td>
+            <td class="sa-col-action">
+              <div class="sa-row-actions">
+                {# Edit: prefill the block form (GET) so it can be adjusted + re-blocked (overwrite). #}
+                <form action="{% url 'admin:sec_audit_enforcement_permanentblock_manage' %}#sa-block-form" method="get">
+                  <input type="hidden" name="scope_type" value="{{ row.entry.scope.scope_type }}">
+                  <input type="hidden" name="scope_value" value="{{ row.entry.scope.scope_value }}">
+                  {% if row.remaining_ttl %}<input type="hidden" name="ttl" value="{{ row.remaining_ttl }}">{% endif %}
+                  <input type="hidden" name="reason" value="{{ row.entry.reason }}">
+                  {% if row.entry.status_code %}<input type="hidden" name="status_code" value="{{ row.entry.status_code }}">{% endif %}
+                  <input type="hidden" name="message" value="{{ row.entry.message }}">
+                  <input type="submit" value="{% trans 'Edit' %}" class="sa-btn sa-btn--sm">
+                </form>
+                <form action="{% url 'admin:sec_audit_enforcement_permanentblock_manage' %}" method="post"
+                      onsubmit="return confirm('{% blocktrans with t=row.entry.scope.scope_type|escapejs v=row.entry.scope.scope_value|escapejs %}Lift the temp block on {{ t }}:{{ v }}?{% endblocktrans %}');">
+                  {% csrf_token %}
+                  <input type="hidden" name="scope_type" value="{{ row.entry.scope.scope_type }}">
+                  <input type="hidden" name="scope_value" value="{{ row.entry.scope.scope_value }}">
+                  <input type="submit" name="unblock" value="{% trans 'Unblock' %}" class="sa-btn sa-btn--sm">
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="sa-foot">{% trans "Temporary blocks live in Redis and auto-expire at the time shown. Edit prefills the form so you can change the TTL or reason and re-block to overwrite; Unblock lifts it immediately." %}</p>
+    </div>
+    {% else %}
+    <div class="sa-empty">
+      <div class="sa-empty-icon">&#10003;</div>
+      <p>{% trans 'No active temp blocks.' %}</p>
+      <p class="sa-muted">{% trans 'Rule-driven and TTL blocks will appear here until they expire.' %}</p>
     </div>
     {% endif %}
   </div>

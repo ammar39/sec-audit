@@ -115,6 +115,32 @@ def test_active_blocks_returns_permanent_rows_only(redis_client):
     assert listed == {('user', '42')}  # temp block not enumerated
 
 
+def test_active_temp_blocks_excludes_permanent(redis_client):
+    store = _tiered(redis_client)
+    store.block(BlockScope('ip', '1.2.3.4'), ttl=300)  # temp = Redis only
+    store.block(BlockScope('user', '42'), ttl=None)  # permanent = pg + Redis cache
+    listed = {
+        (e.scope.scope_type, e.scope.scope_value) for e in store.active_temp_blocks()
+    }
+    assert listed == {('ip', '1.2.3.4')}  # the cached permanent entry is filtered out
+
+
+def test_active_temp_blocks_without_postgres_returns_all_redis(redis_client):
+    # No durable tier: permanent blocks degrade to long-lived Redis entries that
+    # are indistinguishable from temp ones, so all Redis blocks are returned.
+    store = TieredBlockStore(
+        redis_store=RedisBlockStore(client=redis_client, key_prefix='sec_audit'),
+        postgres_store=None,
+        permanent_cache_ttl=3600,
+    )
+    store.block(BlockScope('ip', '1.2.3.4'), ttl=300)
+    store.block(BlockScope('user', '42'), ttl=None)
+    listed = {
+        (e.scope.scope_type, e.scope.scope_value) for e in store.active_temp_blocks()
+    }
+    assert listed == {('ip', '1.2.3.4'), ('user', '42')}
+
+
 def test_active_blocks_empty_without_postgres(redis_client):
     store = TieredBlockStore(
         redis_store=RedisBlockStore(client=redis_client, key_prefix='sec_audit'),

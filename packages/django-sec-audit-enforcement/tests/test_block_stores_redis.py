@@ -36,6 +36,34 @@ def test_permanent_cache_never_no_ttl(redis_client):
     assert 0 < ttl <= 3600
 
 
+def test_scan_blocks_enumerates_entries(redis_client):
+    store = _store(redis_client)
+    store.block(BlockScope('ip', '1.2.3.4'), ttl=300, reason='scanner')
+    store.block(BlockScope('user', '7'), ttl=600)
+    # Warm sentinel uses a sibling key scheme (…:blocks:warm) and must not match.
+    redis_client.set('sec_audit:blocks:warm', '{"v": 2, "members": []}')
+    listed = {(e.scope.scope_type, e.scope.scope_value) for e in store.scan_blocks()}
+    assert listed == {('ip', '1.2.3.4'), ('user', '7')}
+
+
+def test_scan_blocks_skips_malformed_entries(redis_client):
+    store = _store(redis_client)
+    store.block(BlockScope('ip', '1.2.3.4'), ttl=300)
+    redis_client.set('sec_audit:block:ip:9.9.9.9', 'not json', ex=300)
+    listed = {(e.scope.scope_type, e.scope.scope_value) for e in store.scan_blocks()}
+    assert listed == {('ip', '1.2.3.4')}  # bad key skipped, not fatal
+
+
+def test_scan_blocks_backend_error_raises():
+    class _Broken:
+        def scan_iter(self, *a, **k):
+            raise __import__('redis').exceptions.ConnectionError('down')
+
+    store = RedisBlockStore(client=_Broken(), key_prefix='sec_audit')
+    with pytest.raises(BlockStoreError):
+        store.scan_blocks()
+
+
 def test_unblock_deletes(redis_client):
     store = _store(redis_client)
     ip = BlockScope('ip', '1.2.3.4')

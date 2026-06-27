@@ -296,6 +296,128 @@ def test_manager_view_unblocks(block_admin):
     assert is_blocked('user', '42') is None
 
 
+def test_manager_view_lists_temp_blocks_separately(block_admin):
+    block_admin.block_manager_view(
+        _manager_request(
+            'post', {'scope_type': 'user', 'scope_value': '42', 'block': 'Block'}
+        )
+    )  # permanent
+    block_admin.block_manager_view(
+        _manager_request(
+            'post',
+            {
+                'scope_type': 'ip',
+                'scope_value': '1.2.3.4',
+                'ttl': '600',
+                'block': 'Block',
+            },
+        )
+    )  # temp
+    resp = block_admin.block_manager_view(_manager_request('get'))
+    perm = {
+        (e.scope.scope_type, e.scope.scope_value)
+        for e in resp.context_data['active_blocks']
+    }
+    temp = {
+        (r['entry'].scope.scope_type, r['entry'].scope.scope_value)
+        for r in resp.context_data['temp_blocks']
+    }
+    assert perm == {('user', '42')}  # permanent surface
+    assert temp == {('ip', '1.2.3.4')}  # temp surface
+    assert resp.context_data['temp_blocks_error'] is False
+    # each temp row carries a positive remaining-ttl for display + the Edit prefill
+    assert all(r['remaining_ttl'] > 0 for r in resp.context_data['temp_blocks'])
+
+
+def test_manager_view_edit_prefills_form_from_get(block_admin):
+    block_admin.block_manager_view(
+        _manager_request(
+            'post',
+            {
+                'scope_type': 'ip',
+                'scope_value': '1.2.3.4',
+                'ttl': '600',
+                'reason': 'scanner',
+                'block': 'Block',
+            },
+        )
+    )
+    # The Edit button links here with the row's fields as query params.
+    resp = block_admin.block_manager_view(
+        _manager_request(
+            'get',
+            {
+                'scope_type': 'ip',
+                'scope_value': '1.2.3.4',
+                'ttl': '540',
+                'reason': 'scanner',
+            },
+        )
+    )
+    form = resp.context_data['form']
+    assert form.initial['scope_value'] == '1.2.3.4'
+    assert form.initial['ttl'] == '540'
+    assert form.initial['reason'] == 'scanner'
+    assert resp.context_data['editing_subject'] == 'ip:1.2.3.4'
+
+
+def test_manager_view_plain_get_has_empty_form(block_admin):
+    resp = block_admin.block_manager_view(_manager_request('get'))
+    assert resp.context_data['form'].initial == {}
+    assert resp.context_data['editing_subject'] == ''
+
+
+def test_manager_view_edit_resubmit_overwrites_temp_block(block_admin):
+    block_admin.block_manager_view(
+        _manager_request(
+            'post',
+            {
+                'scope_type': 'ip',
+                'scope_value': '1.2.3.4',
+                'ttl': '600',
+                'reason': 'old',
+                'block': 'Block',
+            },
+        )
+    )
+    # Re-blocking the same scope (what the prefilled Edit form submits) overwrites.
+    block_admin.block_manager_view(
+        _manager_request(
+            'post',
+            {
+                'scope_type': 'ip',
+                'scope_value': '1.2.3.4',
+                'ttl': '900',
+                'reason': 'extended',
+                'block': 'Block',
+            },
+        )
+    )
+    entry = is_blocked('ip', '1.2.3.4')
+    assert entry is not None and entry.reason == 'extended'  # single, overwritten block
+
+
+def test_manager_view_unblocks_temp_block(block_admin):
+    block_admin.block_manager_view(
+        _manager_request(
+            'post',
+            {
+                'scope_type': 'ip',
+                'scope_value': '1.2.3.4',
+                'ttl': '600',
+                'block': 'Block',
+            },
+        )
+    )
+    assert is_blocked('ip', '1.2.3.4') is not None
+    block_admin.block_manager_view(
+        _manager_request(
+            'post', {'scope_type': 'ip', 'scope_value': '1.2.3.4', 'unblock': 'Unblock'}
+        )
+    )
+    assert is_blocked('ip', '1.2.3.4') is None
+
+
 def test_manager_view_requires_permission(block_admin):
     with pytest.raises(PermissionDenied):
         block_admin.block_manager_view(_manager_request('get', superuser=False))

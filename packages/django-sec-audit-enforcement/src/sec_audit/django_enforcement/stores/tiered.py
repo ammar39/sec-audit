@@ -145,11 +145,31 @@ class TieredBlockStore:
 
     def active_blocks(self) -> Iterable[BlockEntry]:
         # Durable (permanent) blocks only — the Postgres tier is the source of
-        # truth. Redis-only temp blocks are intentionally not enumerated (they
-        # auto-expire and are not operator-managed subjects).
+        # truth. Redis-only temp blocks are not enumerated here (use
+        # ``active_temp_blocks`` for those).
         if self._pg is None:
             return []
         return list(self._pg.active_blocks())
+
+    def active_temp_blocks(self) -> list[BlockEntry]:
+        # Active temp (Redis-only) blocks: every live Redis block key minus the
+        # permanent membership (whose write-through cache entries share the same
+        # key scheme). Deliberately crosses the "temp blocks aren't enumerated"
+        # boundary for the operator block-manager UI; it costs a SCAN, so it is
+        # only invoked on demand from that page, never on the request path. With
+        # no durable tier, permanent blocks degrade to long-lived Redis entries
+        # indistinguishable from temp ones, so all Redis blocks are returned.
+        redis_entries = self._redis.scan_blocks()
+        if self._pg is None:
+            return redis_entries
+        permanent = {
+            (e.scope.scope_type, e.scope.scope_value) for e in self._pg.active_blocks()
+        }
+        return [
+            e
+            for e in redis_entries
+            if (e.scope.scope_type, e.scope.scope_value) not in permanent
+        ]
 
     def _cache_permanent(self, entry: BlockEntry) -> None:
         # Write-through: Postgres already holds the source of truth, so a cache
