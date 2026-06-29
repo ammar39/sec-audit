@@ -56,6 +56,11 @@ def build_alert_event(match, *, schema_version: str):
             'enforcement.action': 'alert',  # literal, mirrors blocked/block_applied
             'source.address': match.srcip or '',
             'session.id': match.session_id or '',
+            # The user dimension lets a correlator (e.g. RuleResultMonitor) attribute
+            # the alert to a principal even before session_id is reliably emitted.
+            # block_applied carries the principal as scope.value instead (it builds
+            # from a BlockEntry, not a match).
+            'user.id': getattr(match, 'user_id', None) or '',
         }
     )
     return _event(ALERT, schema_version, attrs), logging.WARNING

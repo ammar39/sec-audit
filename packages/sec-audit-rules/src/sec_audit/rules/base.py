@@ -19,6 +19,7 @@ class RuleMatch:
     request_id: str | None = None
     session_id: str | None = None
     srcip: str | None = None
+    user_id: str | None = None
     decision: str | None = None
     subject: str | None = None
     tags: tuple[str, ...] = ()
@@ -245,6 +246,7 @@ def make_match(
         request_id=event.request_id or None,
         session_id=event.session_id or None,
         srcip=event.source.address or None,
+        user_id=event.actor.id or None,
         decision=decision,
         subject=subject,
         tags=tuple(tags),

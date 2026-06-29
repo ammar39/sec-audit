@@ -19,6 +19,7 @@ class _Match:
         self.message = kw.get('message', 'IP touched many distinct resources')
         self.srcip = kw.get('srcip', '203.0.113.10')
         self.session_id = kw.get('session_id', 'sess_xyz')
+        self.user_id = kw.get('user_id', 'user_99')
 
 
 def test_alert_event_shape():
@@ -33,16 +34,33 @@ def test_alert_event_shape():
     assert event.attributes['enforcement.action'] == 'alert'
     assert event.attributes['source.address'] == '203.0.113.10'
     assert event.attributes['session.id'] == 'sess_xyz'
+    # The user dimension lets a correlator attribute the alert to a principal
+    # even before session_id is reliably emitted.
+    assert event.attributes['user.id'] == 'user_99'
 
 
 def test_alert_event_omits_empty_subject():
     event, _level = emit.build_alert_event(
-        _Match(srcip='', session_id=''), schema_version='1.0'
+        _Match(srcip='', session_id='', user_id=''), schema_version='1.0'
     )
     # empty/null attributes are filtered out (no block, no client context yet).
     assert 'source.address' not in event.attributes
     assert 'session.id' not in event.attributes
+    assert 'user.id' not in event.attributes
     assert event.attributes['enforcement.action'] == 'alert'
+
+
+def test_alert_event_tolerates_match_without_user_id():
+    # A match object that predates the user_id field must not break alert building.
+    class _Legacy:
+        rule_name = 'r'
+        severity = 5
+        message = 'm'
+        srcip = '203.0.113.10'
+        session_id = 'sess_xyz'
+
+    event, _level = emit.build_alert_event(_Legacy(), schema_version='1.0')
+    assert 'user.id' not in event.attributes  # getattr default -> '' -> filtered
 
 
 def test_blocked_event_shape():
