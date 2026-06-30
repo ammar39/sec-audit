@@ -74,3 +74,32 @@ def test_rules_valid_dotted_path_passes_parse_without_import():
     # to the runtime build (no import side effects during settings parsing).
     cfg = DjangoEnforcementConfig.from_settings(_S({'rules': ['a.b.DoesNotExist']}))
     assert cfg.rules == ('a.b.DoesNotExist',)
+
+
+def test_require_redis_defaults_false_and_is_backward_compatible():
+    # Default is False so existing deployments parse exactly as before.
+    assert DjangoEnforcementConfig.from_settings(object()).require_redis is False
+    assert DjangoEnforcementConfig.from_settings(
+        _S({'enabled': True, 'redis_url': ''})
+    ).require_redis is False
+
+
+def test_require_redis_fails_fast_when_enabled_without_redis():
+    # With enforcement enabled, refuse the in-memory fallback (it under-counts on a
+    # multi-worker deploy). The guard is enabled AND require_redis AND no redis_url.
+    with pytest.raises(AuditConfigurationError):
+        DjangoEnforcementConfig.from_settings(
+            _S({'enabled': True, 'require_redis': True, 'redis_url': ''})
+        )
+
+
+def test_require_redis_satisfied_with_redis_and_inert_when_disabled():
+    ok = DjangoEnforcementConfig.from_settings(
+        _S({'enabled': True, 'require_redis': True, 'redis_url': 'redis://x:6379/0'})
+    )
+    assert ok.require_redis is True and ok.redis_url == 'redis://x:6379/0'
+    # Disabled enforcement never trips the guard (dev/test posture).
+    off = DjangoEnforcementConfig.from_settings(
+        _S({'enabled': False, 'require_redis': True, 'redis_url': ''})
+    )
+    assert off.enabled is False

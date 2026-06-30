@@ -42,6 +42,7 @@ _KNOWN_KEYS = {
     'fail_open',
     'fail_closed_paths',
     'redis_url',
+    'require_redis',
     'permanent_tier_enabled',
     'permanent_cache_ttl',
     'default_temp_ttl',
@@ -64,6 +65,10 @@ class DjangoEnforcementConfig:
     fail_open: bool = True
     fail_closed_paths: tuple[Pattern[str], ...] = ()
     redis_url: str = ''
+    # When True, refuse to boot with enforcement enabled but no redis_url: the
+    # in-memory fallback splits state per worker and silently under-counts on a
+    # multi-worker deploy (a shared-Redis correctness requirement, not a warning).
+    require_redis: bool = False
     permanent_tier_enabled: bool = True
     permanent_cache_ttl: int = 3600
     default_temp_ttl: int = 300
@@ -90,6 +95,12 @@ class DjangoEnforcementConfig:
             raise AuditConfigurationError('permanent_cache_ttl must be positive.')
         if self.default_temp_ttl <= 0:
             raise AuditConfigurationError('default_temp_ttl must be positive.')
+        if self.require_redis and self.enabled and not self.redis_url:
+            raise AuditConfigurationError(
+                'require_redis is set but redis_url is empty while enforcement is '
+                'enabled; refusing the per-process in-memory fallback (it splits '
+                'state per worker and under-counts on a multi-worker deploy).'
+            )
 
     @classmethod
     def from_settings(cls, settings_obj: Any) -> 'DjangoEnforcementConfig':
@@ -130,6 +141,9 @@ class DjangoEnforcementConfig:
                 'fail_closed_paths', raw.get('fail_closed_paths', ())
             ),
             redis_url=cv.str_value('redis_url', raw.get('redis_url', '')),
+            require_redis=cv.bool_value(
+                'require_redis', raw.get('require_redis', False)
+            ),
             permanent_tier_enabled=cv.bool_value(
                 'permanent_tier_enabled', raw.get('permanent_tier_enabled', True)
             ),

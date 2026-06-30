@@ -131,6 +131,14 @@ def build_log_attributes(
     )
     _add(attributes, 'outcome', source.get('outcome') or _outcome(event_type))
     _add_int(attributes, 'duration_ns', source.get('duration_ns'))
+    # Optional magnitude of one action so a
+    # detection rule can gate on impact, not just count. Numeric-only and dropped when
+    # absent, so non-impact events are byte-identical.
+    _add_int(
+        attributes,
+        'impact.value',
+        source.get('impact.value') or source.get('impact_value'),
+    )
     _add(attributes, 'trace_id', source.get('trace_id'))
     _add(attributes, 'span_id', source.get('span_id'))
     return attributes
