@@ -17,8 +17,8 @@ from sec_audit.django.runtime import get_runtime
 from sec_audit.enforcement.actions import BLOCKING_ACTIONS
 
 from sec_audit.django_enforcement import emit as emit_mod
-from sec_audit.django_enforcement.projection import synthesize_pre_request_event
 from sec_audit.django_enforcement.runtime import get_enforcement_runtime
+from sec_audit.django_enforcement.triggers import INGRESS_TRIGGER
 from sec_audit.django_enforcement.scopes import ingress_summary
 from sec_audit.django_enforcement.stores import BlockStoreError
 
@@ -80,7 +80,7 @@ class EnforcementMiddleware:
         return None
 
     def _eval_safe(self, runtime, summary):
-        pre_event = synthesize_pre_request_event(summary)
+        pre_event = INGRESS_TRIGGER.builder.build(summary)
         try:
             matches = runtime.engine.evaluate(pre_event, enforcement_only=True)
         except Exception:

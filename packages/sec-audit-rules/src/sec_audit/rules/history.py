@@ -75,6 +75,25 @@ class RouteScopeExtractor:
         return [ScopeKey('route', route)] if route else []
 
 
+class FieldScopeExtractor:
+    """Extract a custom correlation key from a single declared summary field.
+
+    Backs a schema-derived scope (a ``SCOPE``-role field): reads the field the
+    schema projected into the summary and yields a ``ScopeKey(scope_name, value)``
+    so a rule can correlate a user-defined dimension. A missing/empty field yields
+    no scope (silently), matching the built-in extractors.
+    """
+
+    def __init__(self, field_name: str, scope_name: str) -> None:
+        self.field_name = str(field_name)
+        self._scope_name = str(scope_name)
+        self.scope_names = {self._scope_name}
+
+    def extract(self, event_summary: Mapping[str, object]) -> Sequence[ScopeKey]:
+        value = _clean_key(event_summary.get(self.field_name))
+        return [ScopeKey(self._scope_name, value)] if value else []
+
+
 DEFAULT_HISTORY_SCOPE_EXTRACTORS = (
     UserScopeExtractor,
     SessionScopeExtractor,

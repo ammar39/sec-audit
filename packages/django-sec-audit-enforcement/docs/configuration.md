@@ -40,6 +40,8 @@ SEC_AUDIT_ENFORCEMENT = {
 | `rule_actions` | dict | see below | Map a rule **name** → the action to take when it fires. Merged over the scope-safe defaults. |
 | `block_rules` | dict | `{}` | Map a rule **name** → temp-block TTL (seconds). |
 | `rules` | list | `()` | The rules to run (dotted paths or instances) — built-in (`sec_audit.rules.builtins.*`) and/or your own. Nothing runs unless listed; the set is exactly what you declare. See [Custom rules](custom-rules.md). |
+| `trigger_specs` | sequence | `()` | Custom triggers (dotted `"module.attr"` paths to a `Trigger`/factory, or `Trigger` instances) appended to the built-in egress/auth/model/ingress triggers. Selected by name via `fire_event(..., trigger=...)`. |
+| `schema_specs` | sequence | `()` | Custom `EventSchema`s (dotted paths to an `EventSchema`/factory, or instances) for your `fire_event` event types. A schema names each field's role (SCOPE/MODEL/SENSITIVE), so the event can build a correlated model in history safely. See [Custom events](custom-events.md). |
 
 ## `rule_actions`
 

@@ -340,6 +340,9 @@ def test_memory_history_bounds_max_keys_and_max_events_per_key():
 
 
 def test_runtime_summary_omits_raw_objects_bodies_and_sensitive_values():
+    # The history summary is a whitelist (create_history_summary): non-whitelisted
+    # fields — raw objects, bodies, and sensitive-looking keys — are dropped, while
+    # whitelisted system identifiers (session_id) survive.
     class RequestObject:
         pass
 
@@ -353,14 +356,14 @@ def test_runtime_summary_omits_raw_objects_bodies_and_sensitive_values():
                 'payload': b'raw',
                 'body': {'password': 'secret'},
             }
-        ),
-        sensitive_keys=('password',),
+        )
     )
 
     assert 'password' not in summary
     assert 'request' not in summary
     assert 'payload' not in summary
     assert 'body' not in summary
+    assert summary.get('session_id') == 's1'
 
 
 def test_memory_history_concurrent_appends_are_thread_safe():

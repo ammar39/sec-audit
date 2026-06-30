@@ -3,7 +3,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from sec_audit.rules.schema import EventSchemaRegistry
 
 from sec_audit.core.clock import utc_timestamp
 from sec_audit.core.json import json_safe
@@ -25,11 +28,19 @@ from sec_audit.rules.stores.counters import CounterStore
 
 logger = logging.getLogger('sec_audit.rules')
 
-_INTERNAL_EVENT_PREFIXES = (
+# Reserved event-type namespaces the engine never evaluates (its own emitted
+# results + the reserved context channel). Public so producers — e.g. the custom
+# fire_event entry point — can reject these without duplicating the tuple.
+INTERNAL_EVENT_PREFIXES = (
     'audit.rule.',
     'audit.enforcement.',
     'audit.context.',
 )
+
+
+def is_internal_event_type(event_type: str) -> bool:
+    """True if ``event_type`` is in a reserved internal namespace the engine skips."""
+    return str(event_type).startswith(INTERNAL_EVENT_PREFIXES)
 
 
 @dataclass(frozen=True)
@@ -54,9 +65,8 @@ class RuleEngine:
         clock: Callable[[], float] = utc_timestamp,
         result_sinks: Sequence[object] = (),
         history_extractors: Sequence[HistoryScopeExtractor] | None = None,
-        sensitive_keys: Sequence[str] | None = None,
-        value_patterns: Sequence[object] = (),
         fail_open: bool = True,
+        schemas: EventSchemaRegistry | None = None,
     ) -> None:
         if counters is None:
             raise ValueError('RuleEngine requires an explicit CounterStore.')
@@ -69,9 +79,11 @@ class RuleEngine:
         self.history_extractors = tuple(
             history_extractors or build_history_scope_extractors()
         )
-        self.sensitive_keys = tuple(sensitive_keys or ())
-        self.value_patterns = tuple(value_patterns)
         self.fail_open = bool(fail_open)
+        # Per-event-type EventSchema registry. None → today's whitelist-only
+        # history projection (full back-compat); a registered schema EXTENDS the
+        # whitelist with declared MODEL/SCOPE fields and redacts SENSITIVE ones.
+        self.schemas = schemas
 
     def evaluate(
         self,
@@ -110,14 +122,16 @@ class RuleEngine:
         return matches
 
     def _is_internal_event(self, rule_event: RuleEvent) -> bool:
-        return rule_event.event_type.startswith(_INTERNAL_EVENT_PREFIXES)
+        return is_internal_event_type(rule_event.event_type)
 
     def _build_evaluation_context(self, rule_event: RuleEvent) -> _EvaluationContext:
         now = self.clock()
-        kwargs = {'value_patterns': self.value_patterns}
-        if self.sensitive_keys:
-            kwargs['sensitive_keys'] = self.sensitive_keys
-        summary = dict(create_history_summary(rule_event, **kwargs))
+        schema = (
+            self.schemas.get(rule_event.event_type)
+            if self.schemas is not None
+            else None
+        )
+        summary = dict(create_history_summary(rule_event, schema=schema))
         scope_keys = extract_scope_keys(summary, self.history_extractors)
         return _EvaluationContext(
             rule_event=rule_event,

@@ -38,6 +38,21 @@ prior code-review follow-ups across `sec-audit-rules` and
   looked up under the same audit-session id that egress emits, never
   `request.session.session_key`.
 
+### Added
+- **`sec-audit-rules` / `django-sec-audit-enforcement`** — normalized event **triggers**
+  and a public **`fire_event`** entry point for custom events. `sec_audit.rules.triggers`
+  adds a framework-free `EventContextBuilder` protocol, a `MappingEventBuilder`, a
+  `Trigger` value object, and a `TriggerRegistry` (mirroring `ScopeRegistry.from_specs`).
+  The built-in ingress/egress/auth/model sources are expressed as `DEFAULT_TRIGGERS`;
+  applications register their own via `SEC_AUDIT_ENFORCEMENT['trigger_specs']` (resolved
+  fail-fast at `ready()`, like `rules`) and fire them with
+  `sec_audit.django_enforcement.fire_event(event_type, fields, trigger=...)`, which runs
+  the same `engine.evaluate` → enforcement → emit path the built-ins use (custom rules
+  subscribe via `Rule.event_types`; matches yield the existing `audit.enforcement.*`
+  events — no new schema). `event_type`s in the reserved `audit.rule.*` /
+  `audit.enforcement.*` / `audit.context.*` namespaces are rejected. The reserved-prefix
+  check is now public as `sec_audit.rules.is_internal_event_type`.
+
 ### Security
 - **`django-sec-audit-enforcement`** — admin block **revocation now requires the
   `change_permanentblock` permission**. `PermanentBlockAdmin.has_change_permission`
@@ -78,11 +93,14 @@ prior code-review follow-ups across `sec-audit-rules` and
   `sec_audit:hist:session:[REDACTED]`. `create_history_summary` scrubbed the summary
   before scope keys were extracted from it, and `session_id` normalizes to `sessionid`
   — a `DEFAULT_SENSITIVE_KEYS` denylist entry — so every session merged into one
-  `[REDACTED]` history bucket (breaking per-session correlation). The scope-key fields
-  (`session_id`, `srcip`, `user_id`, `username`, `route`) are now allowlisted from the
-  history-summary scrub, so they survive intact in both the scope key and the stored
-  summary body; genuinely sensitive body values still scrub. Only `session` was
-  affected in practice (the other scope fields don't collide with the denylist).
+  `[REDACTED]` history bucket (breaking per-session correlation). The history summary is
+  no longer run through the logging scrubber at all: the `_HISTORY_WHITELIST` of system
+  fields is now the sole contract for what enters the rules history store, decoupling the
+  rules package from the logging denylist (`scrub`/`DEFAULT_SENSITIVE_KEYS`). The dead
+  `sensitive_keys`/`value_patterns` params on `RuleEngine` and `create_history_summary`
+  are removed. **Note:** the whitelist admits only string/scalar system identifiers, so a
+  `bytes` value under a whitelisted key (which the strict feed never produces) is now
+  base64-encoded by JSON-coercion rather than redacted.
 - **`django-sec-audit-enforcement`** — `PostgresBlockStore.block()` is now atomic
   (`update_or_create` inside `transaction.atomic()`), closing a check-then-create race
   where two concurrent re-bans of the same scope could raise a raw `IntegrityError`;

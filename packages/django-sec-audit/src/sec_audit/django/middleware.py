@@ -71,6 +71,10 @@ class BaseAuditMiddleware:
                 path=base.get('path', ''),
                 srcip=base.get('srcip', ''),
                 method=request.method,
+                # Route is already resolved into ``base`` (audit_route_info, above);
+                # carrying it ambiently lets a custom fire_event auto-attach it.
+                route=base.get('route_pattern', ''),
+                route_name=base.get('route_name', ''),
             )
         )
         return context_token, session_id, base

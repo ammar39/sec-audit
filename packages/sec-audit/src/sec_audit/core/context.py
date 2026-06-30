@@ -13,6 +13,12 @@ class AuditContext:
     path: str = ''
     srcip: str = ''
     method: str = ''
+    # Resolved pre-view (the route is known before get_response), so safe to carry
+    # ambiently. ``route`` holds the route pattern/template (the value that, via
+    # http.route -> route, feeds the ``route`` scope). Appended with defaults to
+    # keep every existing constructor/reader back-compatible.
+    route: str = ''
+    route_name: str = ''
 
 
 # A stdlib ``ContextVar`` keeps the framework-neutral core free of Django's

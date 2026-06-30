@@ -9,7 +9,9 @@ from django.db import transaction
 from django.http import Http404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from sec_audit.django_enforcement import fields_from_request, fire_event
 
+from fintech.audit_events import TRANSFER_EVENT
 from fintech.api.serializers import (
     AccountSerializer,
     AdminActionSerializer,
@@ -59,6 +61,19 @@ def transfer(request):
         risk_score=18,
         status=Transfer.STATUS_CREATED,
         destination_alias=serializer.validated_data['destination_alias'],
+    )
+    # Consume the custom-event feature: fire a user-defined event so the
+    # account-scoped velocity rule accumulates the transfer amount across the
+    # window. Standard scopes (ip/session/route) are auto-attached from the
+    # request; account_id/amount/destination_alias come from the schema.
+    fire_event(
+        TRANSFER_EVENT,
+        {
+            **fields_from_request(request),
+            'account_id': account.account_id,
+            'amount': float(transfer_obj.amount),
+            'destination_alias': transfer_obj.destination_alias,
+        },
     )
     return Response(TransferSerializer(transfer_obj).data, status=201)
 

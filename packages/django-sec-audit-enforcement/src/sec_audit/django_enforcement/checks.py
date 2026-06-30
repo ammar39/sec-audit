@@ -150,6 +150,31 @@ def check_redis_eviction_policy(app_configs, **kwargs):
 
 
 @register(Tags.security)
+def check_enforcement_rules_registered(app_configs, **kwargs):
+    """W008 — enforcement enabled but no rules registered is a silent no-op.
+
+    ``SEC_AUDIT_ENFORCEMENT['rules']`` is the sole detector-registration surface
+    and is opt-in. With it empty, the engine runs and the consumer is registered,
+    but no rule can ever match — so nothing is ever detected or blocked. This fails
+    loud because operations expect an enabled enforcement layer to actually enforce.
+    """
+    config = _config()
+    if config is None or not config.enabled:
+        return []
+    if config.rules:
+        return []
+    return [
+        Warning(
+            'enforcement is enabled but no rules are registered; the engine runs but '
+            'no rule can ever match, so nothing is detected or blocked (silent no-op).',
+            hint="Register detectors in SEC_AUDIT_ENFORCEMENT['rules'] (built-in "
+            'detectors live in sec_audit.rules.builtins), or set enabled=False.',
+            id='sec_audit_enforcement.W008',
+        )
+    ]
+
+
+@register(Tags.security)
 def check_session_enforcement_order(app_configs, **kwargs):
     """W007 — session blocks need SessionMiddleware to run before enforcement.
 
